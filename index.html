@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Tag Checker</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (xlsx) for handling .xls and .xlsx files -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- QuaggaJS for barcode scanning via device camera -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        #interactive.viewport video { width: 100%; height: auto; max-height: 350px; object-fit: cover; border-radius: 1rem; }
+        #interactive.viewport canvas.drawing, #interactive.viewport canvas.drawingBuffer { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-barcode text-2xl"></i>
+                <h1 class="text-lg font-bold tracking-tight">Price Tag Checker</h1>
+            </div>
+            <div id="status-badge" class="bg-indigo-700 text-xs px-2.5 py-1 rounded-full font-medium flex items-center space-x-1">
+                <span class="w-2 h-2 rounded-full bg-amber-400 inline-block" id="db-status-dot"></span>
+                <span id="db-status-text">No Files Loaded</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 pb-20">
+        
+        <!-- Navigation Tabs -->
+        <div class="flex bg-slate-200 p-1 rounded-xl mb-6 shadow-inner">
+            <button onclick="switchTab('scanner')" id="tab-btn-scanner" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-camera"></i>
+                <span>Scanner & Manual</span>
+            </button>
+            <button onclick="switchTab('spreadsheet')" id="tab-btn-spreadsheet" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Price Tag Files</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: SCANNER & MANUAL LOOKUP -->
+        <div id="tab-scanner" class="space-y-6">
+            
+            <!-- Result Display Card -->
+            <div id="result-card" class="hidden bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <span class="text-xs uppercase tracking-wider font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-md" id="res-sku-label">SKU: --</span>
+                        <h2 class="text-2xl font-bold text-slate-800 mt-2" id="res-sku-val">--</h2>
+                    </div>
+                    <button onclick="clearResult()" class="text-slate-400 hover:text-slate-600 p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Product Description -->
+                <div id="res-desc-container" class="mb-4 text-slate-600 text-sm font-medium">
+                    <span id="res-desc" class="italic text-slate-500">No description available</span>
+                </div>
+
+                <div id="res-prices-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
+                    <!-- Dynamically populated based on available pricing data columns -->
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-slate-800 flex items-center space-x-2">
+                        <i class="fa-solid fa-camera text-indigo-600"></i>
+                        <span>Camera Barcode Scanner</span>
+                    </h3>
+                    <button id="camera-toggle-btn" onclick="toggleCamera()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
+                        Start Camera
+                    </button>
+                </div>
+
+                <!-- Camera Viewport Container -->
+                <div id="camera-container" class="relative hidden bg-black rounded-xl overflow-hidden mb-4">
+                    <div id="interactive" class="viewport"></div>
+                    <div class="absolute inset-0 border-2 border-indigo-400 border-dashed rounded-xl pointer-events-none opacity-60 flex items-center justify-center">
+                        <div class="w-3/4 h-16 border-2 border-red-500 rounded-lg animate-pulse"></div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 text-center">Align barcode within the target frame to scan automatically.</p>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <h3 class="font-semibold text-slate-800 mb-3 flex items-center space-x-2">
+                    <i class="fa-solid fa-keyboard text-indigo-600"></i>
+                    <span>Manual SKU Entry</span>
+                </h3>
+                <div class="flex space-x-2">
+                    <input type="text" id="manual-sku-input" placeholder="Type or scan SKU code..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                    <button onclick="lookupManualSku()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-sm">
+                        Lookup
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- TAB 2: PRICE TAG FILES MANAGER -->
+        <div id="tab-spreadsheet" class="hidden space-y-6">
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h3 class="font-bold text-lg text-slate-800 mb-2">Upload Price Tag Spreadsheets</h3>
+                <p class="text-sm text-slate-500 mb-6">Upload up to two spreadsheets (<code>.xls</code> or <code>.xlsx</code>). The app will automatically merge and search SKUs across both files.</p>
+                
+                <!-- File Upload Dropzone (Supports Multiple) -->
+                <label class="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/50 rounded-2xl p-8 cursor-pointer transition-all">
+                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-3 text-xl">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-700 mb-1" id="file-label-text">Click to browse or drop up to 2 files</span>
+                    <span class="text-xs text-slate-400">Supports Excel format (.xls, .xlsx)</span>
+                    <input type="file" id="excel-file-input" accept=".xls, .xlsx, .csv" multiple class="hidden" onchange="handleExcelUpload(event)">
+                </label>
+            </div>
+
+            <!-- Spreadsheet Info & Quick Table View -->
+            <div id="spreadsheet-preview-card" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h4 class="font-bold text-slate-800" id="db-filename">Loaded Files</h4>
+                        <p class="text-xs text-slate-500 mt-0.5"><span id="db-row-count">0</span> items indexed • Latest Update: <span id="db-update-date" class="font-semibold text-indigo-600">--</span></p>
+                    </div>
+                    <button onclick="clearDatabase()" class="text-rose-600 hover:bg-rose-50 text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-200 transition-all">
+                        Clear Data
+                    </button>
+                </div>
+
+                <!-- Sample Data Preview Table -->
+                <div class="overflow-x-auto border border-slate-100 rounded-xl">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 font-semibold text-slate-700 uppercase tracking-wider">
+                            <tr>
+                                <th class="p-3">SKU</th>
+                                <th class="p-3">Description</th>
+                                <th class="p-3">Sell</th>
+                                <th class="p-3">StorEDLP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-table-body" class="divide-y divide-slate-100">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start space-x-3">
+                <i class="fa-solid fa-lightbulb text-amber-500 text-xl mt-0.5"></i>
+                <div>
+                    <h4 class="text-sm font-bold text-amber-800">File Date & Header Information</h4>
+                    <p class="text-xs text-amber-700 mt-1">The app reads dates found in filenames or file properties to show the most recent update. Make sure sheets contain a column labeled <code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">SKU</code>, description (<code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">Prod Desc</code> or <code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">Brand Model</code>), and pricing info.</p>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Global state storage
+        let productDatabase = {}; // Map: SKU -> { desc, sell, edlp }
+        let rawProductArray = []; // Array for preview table
+        let loadedFilesInfo = []; // Track loaded file names & dates
+        let isCameraActive = false;
+
+        function switchTab(tabName) {
+            const scannerTab = document.getElementById('tab-scanner');
+            const spreadsheetTab = document.getElementById('tab-spreadsheet');
+            const btnScanner = document.getElementById('tab-btn-scanner');
+            const btnSpreadsheet = document.getElementById('tab-btn-spreadsheet');
+
+            if (tabName === 'scanner') {
+                scannerTab.classList.remove('hidden');
+                spreadsheetTab.classList.add('hidden');
+                btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
+                btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
+            } else {
+                scannerTab.classList.add('hidden');
+                spreadsheetTab.classList.remove('hidden');
+                btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
+                btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
+                if (isCameraActive) {
+                    stopCamera();
+                }
+            }
+        }
+
+        function handleExcelUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            // Limit up to 2 files
+            const filesToProcess = Array.from(files).slice(0, 2);
+            document.getElementById('file-label-text').innerText = filesToProcess.map(f => f.name).join(', ');
+
+            productDatabase = {};
+            rawProductArray = [];
+            loadedFilesInfo = [];
+
+            let processedCount = 0;
+
+            filesToProcess.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                        
+                        // Extract date from filename or file lastModified
+                        let extractedDate = extractDateFromString(file.name) || new Date(file.lastModified);
+
+                        loadedFilesInfo.push({
+                            name: file.name,
+                            date: extractedDate instanceof Date && !isNaN(extractedDate) ? extractedDate : new Date()
+                        });
+
+                        parseRowsIntoDatabase(jsonRows);
+                    } catch (err) {
+                        console.error(err);
+                        alertBox(`Failed to parse ${file.name}. Ensure it is a valid spreadsheet.`);
+                    }
+
+                    processedCount++;
+                    if (processedCount === filesToProcess.length) {
+                        finalizeDatabaseLoad();
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function extractDateFromString(str) {
+            const match = str.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(\d{8})/);
+            if (match) {
+                const d = new Date(match[0]);
+                if (!isNaN(d)) return d;
+            }
+            return null;
+        }
+
+        function parseRowsIntoDatabase(rows) {
+            if (!rows || rows.length === 0) return;
+
+            let sampleRow = rows[0];
+            let keys = Object.keys(sampleRow);
+            
+            let skuKey = keys.find(k => k.trim().toLowerCase() === 'sku');
+            let descKey = keys.find(k => ['prod desc', 'brand model', 'description', 'product description', 'item description'].includes(k.trim().toLowerCase()));
+            let sellKey = keys.find(k => ['sell', 'selling price', 'price'].includes(k.trim().toLowerCase()));
+            let edlpKey = keys.find(k => ['storedlp', 'edlp', 'store edlp'].includes(k.trim().toLowerCase()));
+
+            if (!skuKey) return;
+
+            rows.forEach(row => {
+                let skuVal = String(row[skuKey]).trim();
+                if (!skuVal) return;
+
+                let descVal = descKey ? String(row[descKey]).trim() : "";
+                let sellVal = sellKey ? row[sellKey] : "";
+                let edlpVal = edlpKey ? row[edlpKey] : "";
+
+                if (!productDatabase[skuVal]) {
+                    productDatabase[skuVal] = { desc: "No description available", sell: "N/A", edlp: "N/A" };
+                }
+
+                if (descVal !== "" && descVal !== "No description available") {
+                    productDatabase[skuVal].desc = descVal;
+                }
+                if (sellVal !== "" && sellVal !== "N/A") {
+                    productDatabase[skuVal].sell = sellVal;
+                }
+                if (edlpVal !== "" && edlpVal !== "N/A") {
+                    productDatabase[skuVal].edlp = edlpVal;
+                }
+            });
+        }
+
+        function finalizeDatabaseLoad() {
+            rawProductArray = Object.keys(productDatabase).map(sku => ({
+                sku: sku,
+                desc: productDatabase[sku].desc,
+                sell: productDatabase[sku].sell,
+                edlp: productDatabase[sku].edlp
+            }));
+
+            if (rawProductArray.length === 0) {
+                alertBox("No valid SKUs found in the uploaded files.");
+                return;
+            }
+
+            let latestDate = new Date(0);
+            loadedFilesInfo.forEach(f => {
+                if (f.date > latestDate) latestDate = f.date;
+            });
+
+            const dateStr = latestDate.getTime() > 0 ? latestDate.toLocaleDateString() : "Unknown";
+
+            updateDatabaseStatus(loadedFilesInfo.map(f => f.name).join(', '), rawProductArray.length, dateStr);
+            renderPreviewTable();
+        }
+
+        function updateDatabaseStatus(filename, count, dateStr) {
+            const dot = document.getElementById('db-status-dot');
+            const text = document.getElementById('db-status-text');
+            dot.className = "w-2 h-2 rounded-full bg-emerald-500 inline-block";
+            text.innerText = `${count} items loaded`;
+
+            document.getElementById('spreadsheet-preview-card').classList.remove('hidden');
+            document.getElementById('db-filename').innerText = filename;
+            document.getElementById('db-row-count').innerText = count;
+            document.getElementById('db-update-date').innerText = dateStr;
+        }
+
+        function clearDatabase() {
+            productDatabase = {};
+            rawProductArray = [];
+            loadedFilesInfo = [];
+            document.getElementById('excel-file-input').value = "";
+            document.getElementById('file-label-text').innerText = "Click to browse or drop up to 2 files";
+            document.getElementById('spreadsheet-preview-card').classList.add('hidden');
+            
+            const dot = document.getElementById('db-status-dot');
+            const text = document.getElementById('db-status-text');
+            dot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block";
+            text.innerText = "No Files Loaded";
+            clearResult();
+        }
+
+        function renderPreviewTable() {
+            const tbody = document.getElementById('preview-table-body');
+            tbody.innerHTML = "";
+            
+            const previewSlice = rawProductArray.slice(0, 25);
+            previewSlice.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-mono font-medium text-slate-800">${escapeHtml(item.sku)}</td>
+                    <td class="p-3 text-slate-700">${escapeHtml(item.desc)}</td>
+                    <td class="p-3 font-semibold text-emerald-600">${escapeHtml(String(item.sell))}</td>
+                    <td class="p-3 font-semibold text-blue-600">${escapeHtml(String(item.edlp))}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function lookupManualSku() {
+            const input = document.getElementById('manual-sku-input');
+            const sku = input.value.trim();
+            if (!sku) {
+                alertBox("Please enter a SKU number.");
+                return;
+            }
+            performLookup(sku);
+            input.value = "";
+        }
+
+        function performLookup(sku) {
+            const cleanSku = String(sku).trim();
+            
+            if (Object.keys(productDatabase).length === 0) {
+                alertBox("Please upload your price tag files first.");
+                switchTab('spreadsheet');
+                return;
+            }
+
+            const item = productDatabase[cleanSku];
+            const card = document.getElementById('result-card');
+            const pricesGrid = document.getElementById('res-prices-grid');
+            
+            card.classList.remove('hidden');
+            document.getElementById('res-sku-val').innerText = cleanSku;
+            pricesGrid.innerHTML = "";
+
+            if (item) {
+                document.getElementById('res-sku-label').innerText = `SKU MATCH FOUND`;
+                document.getElementById('res-desc').innerText = item.desc;
+                card.className = "bg-white border-2 border-emerald-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
+
+                let hasPrices = false;
+
+                if (item.sell !== "N/A" && item.sell !== "") {
+                    hasPrices = true;
+                    pricesGrid.innerHTML += `
+                        <div class="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
+                            <span class="text-xs font-semibold text-emerald-600 uppercase">Sell Price</span>
+                            <div class="text-2xl font-extrabold text-emerald-700 mt-1">${formatPrice(item.sell)}</div>
+                        </div>
+                    `;
+                }
+
+                if (item.edlp !== "N/A" && item.edlp !== "") {
+                    hasPrices = true;
+                    pricesGrid.innerHTML += `
+                        <div class="bg-blue-50 rounded-xl p-3.5 border border-blue-100">
+                            <span class="text-xs font-semibold text-blue-600 uppercase">StorEDLP Price</span>
+                            <div class="text-2xl font-extrabold text-blue-700 mt-1">${formatPrice(item.edlp)}</div>
+                        </div>
+                    `;
+                }
+
+                if (!hasPrices) {
+                    pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-slate-500 italic text-center py-2">No pricing data available for this SKU.</div>`;
+                }
+
+                pricesGrid.className = `grid grid-cols-1 ${pricesGrid.children.length > 1 ? 'sm:grid-cols-2' : ''} gap-4 mt-4 pt-4 border-t border-slate-100`;
+
+            } else {
+                document.getElementById('res-sku-label').innerText = `SKU NOT IN FILES`;
+                document.getElementById('res-desc').innerText = "Product not found in loaded price tag files";
+                card.className = "bg-white border-2 border-rose-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
+                pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-rose-500 font-medium text-center py-2">SKU was not found in the loaded price tag files.</div>`;
+            }
+
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function clearResult() {
+            document.getElementById('result-card').classList.add('hidden');
+        }
+
+        function formatPrice(val) {
+            if (val === "N/A" || val === undefined || val === null || val === "") return "N/A";
+            let str = String(val).trim();
+            if (!str.startsWith("$") && !isNaN(Number(str))) {
+                return "$" + Number(str).toFixed(2);
+            }
+            return str;
+        }
+
+        function toggleCamera() {
+            if (isCameraActive) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+        }
+
+        function startCamera() {
+            const container = document.getElementById('camera-container');
+            const btn = document.getElementById('camera-toggle-btn');
+            
+            container.classList.remove('hidden');
+            btn.innerText = "Stop Camera";
+            btn.className = "bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm";
+            isCameraActive = true;
+
+            Quagga.init({
+                inputStream : {
+                    name : "Live",
+                    type : "LiveStream",
+                    target: document.querySelector('#interactive'),
+                    constraints: {
+                        facingMode: "environment"
+                    }
+                },
+                decoder : {
+                    readers : [
+                        "ean_reader",
+                        "ean_8_reader",
+                        "code_128_reader",
+                        "code_39_reader",
+                        "upc_reader",
+                        "upc_e_reader"
+                    ]
+                }
+            }, function(err) {
+                if (err) {
+                    console.error(err);
+                    alertBox("Unable to access camera. Check device permissions.");
+                    stopCamera();
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(onBarcodeDetected);
+        }
+
+        function stopCamera() {
+            if (isCameraActive) {
+                Quagga.stop();
+                Quagga.offDetected(onBarcodeDetected);
+            }
+            const container = document.getElementById('camera-container');
+            const btn = document.getElementById('camera-toggle-btn');
+            
+            container.classList.add('hidden');
+            btn.innerText = "Start Camera";
+            btn.className = "bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm";
+            isCameraActive = false;
+        }
+
+        let lastScannedCode = "";
+        let lastScanTime = 0;
+
+        function onBarcodeDetected(result) {
+            const code = result.codeResult.code;
+            const now = Date.now();
+            
+            if (code === lastScannedCode && now - lastScanTime < 2000) {
+                return;
+            }
+
+            lastScannedCode = code;
+            lastScanTime = now;
+
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+
+            performLookup(code);
+        }
+
+        function alertBox(message) {
+            const toast = document.createElement('div');
+            toast.className = "fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-2 transition-all animate-bounce";
+            toast.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-400"></i><span>${escapeHtml(message)}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
