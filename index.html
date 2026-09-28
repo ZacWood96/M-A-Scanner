@@ -36,7 +36,6 @@
 
     <main class="flex-1 max-w-4xl w-full mx-auto p-4 pb-20">
         
-        <!-- Navigation Tabs -->
         <div class="flex bg-slate-200 p-1 rounded-xl mb-6 shadow-inner">
             <button onclick="switchTab('scanner')" id="tab-btn-scanner" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2">
                 <i class="fa-solid fa-camera"></i>
@@ -51,7 +50,6 @@
         <!-- TAB 1: SCANNER & MANUAL LOOKUP -->
         <div id="tab-scanner" class="space-y-6">
             
-            <!-- Result Display Card -->
             <div id="result-card" class="hidden bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in">
                 <div class="flex justify-between items-start mb-2">
                     <div>
@@ -77,7 +75,7 @@
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-semibold text-slate-800 flex items-center space-x-2">
                         <i class="fa-solid fa-camera text-indigo-600"></i>
-                        <span>Camera Barcode Scanner</span>
+                        <span>Code 128 Camera Scanner</span>
                     </h3>
                     <button id="camera-toggle-btn" onclick="toggleCamera()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
                         Start Camera
@@ -91,7 +89,7 @@
                         <div class="w-3/4 h-16 border-2 border-red-500 rounded-lg animate-pulse"></div>
                     </div>
                 </div>
-                <p class="text-xs text-slate-500 text-center">Align barcode within the target frame to scan automatically.</p>
+                <p class="text-xs text-slate-500 text-center">Align Code 128 barcode within the target frame to scan automatically.</p>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -100,7 +98,7 @@
                     <span>Manual SKU Entry</span>
                 </h3>
                 <div class="flex space-x-2">
-                    <input type="text" id="manual-sku-input" placeholder="Type or scan SKU code..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type numeric SKU..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
                     <button onclick="lookupManualSku()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-sm">
                         Lookup
                     </button>
@@ -170,7 +168,6 @@
     </main>
 
     <script>
-        // Global state storage
         let productDatabase = {}; // Map: SKU -> { desc, sell, edlp }
         let rawProductArray = []; // Array for preview table
         let loadedFilesInfo = []; // Track loaded file names & dates
@@ -202,7 +199,6 @@
             const files = event.target.files;
             if (!files || files.length === 0) return;
 
-            // Limit up to 2 files
             const filesToProcess = Array.from(files).slice(0, 2);
             document.getElementById('file-label-text').innerText = filesToProcess.map(f => f.name).join(', ');
 
@@ -223,7 +219,6 @@
                         const worksheet = workbook.Sheets[firstSheetName];
                         const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                         
-                        // Extract date from filename or file lastModified
                         let extractedDate = extractDateFromString(file.name) || new Date(file.lastModified);
 
                         loadedFilesInfo.push({
@@ -364,7 +359,7 @@
             const input = document.getElementById('manual-sku-input');
             const sku = input.value.trim();
             if (!sku) {
-                alertBox("Please enter a SKU number.");
+                alertBox("Please enter a numeric SKU.");
                 return;
             }
             performLookup(sku);
@@ -472,12 +467,7 @@
                 },
                 decoder : {
                     readers : [
-                        "ean_reader",
-                        "ean_8_reader",
-                        "code_128_reader",
-                        "code_39_reader",
-                        "upc_reader",
-                        "upc_e_reader"
+                        "code_128_reader"
                     ]
                 }
             }, function(err) {
