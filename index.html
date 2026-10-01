@@ -88,10 +88,22 @@
                         <span>Add IMA Contract (<span id="ima-cost-label">$189.99</span>)</span>
                     </label>
 
-                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
-                        <input type="checkbox" id="chk-soundcare" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                        <span>Add Soundcare Protection Plan (<span id="soundcare-cost-label">$0.00</span>)</span>
-                    </label>
+                    <div class="space-y-2 pt-2 border-t border-slate-200">
+                        <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
+                            <input type="checkbox" id="chk-soundcare" onchange="toggleSoundcareOptions()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                            <span>Add Soundcare Protection Plan (<span id="soundcare-cost-label">$0.00</span>)</span>
+                        </label>
+                        
+                        <!-- Soundcare Term Selector Widget -->
+                        <div id="soundcare-term-container" class="hidden pl-7 pt-1 flex items-center space-x-2">
+                            <span class="text-xs font-semibold text-slate-500">Term:</span>
+                            <div class="inline-flex bg-slate-200 p-0.5 rounded-lg text-xs font-semibold">
+                                <button type="button" onclick="setSoundcareTerm(2)" id="term-btn-2" class="px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all">2-Year</button>
+                                <button type="button" onclick="setSoundcareTerm(3)" id="term-btn-3" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all">3-Year</button>
+                                <button type="button" onclick="setSoundcareTerm(5)" id="term-btn-5" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all">5-Year</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Out-The-Door Final Total Breakdown -->
                     <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
@@ -108,7 +120,7 @@
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-semibold text-slate-800 flex items-center space-x-2">
                         <i class="fa-solid fa-camera text-indigo-600"></i>
-                        <span>Code 128 Camera Scanner</span>
+                        <span>Tap Start Camera to Scan SKU</span>
                     </h3>
                     <button id="camera-toggle-btn" onclick="toggleCamera()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
                         Start Camera
@@ -122,7 +134,7 @@
                         <div class="w-3/4 h-16 border-2 border-red-500 rounded-lg animate-pulse"></div>
                     </div>
                 </div>
-                <p class="text-xs text-slate-500 text-center">Align Code 128 Auto barcode within the target frame to scan automatically.</p>
+                <p class="text-xs text-slate-500 text-center">Scan the Barcode on the bottom of your Price Tag. You need good lighting to scan, and the barcode format needs to be Code 128 in the Dymo File.</p>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -131,7 +143,7 @@
                     <span>Manual SKU Entry</span>
                 </h3>
                 <div class="flex space-x-2">
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type numeric SKU..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                    <input type="tel" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type SKU here" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
                     <button onclick="lookupManualSku()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-sm">
                         Lookup
                     </button>
@@ -227,6 +239,7 @@
         let isCameraActive = false;
         let currentTaxRate = 7.0; // Default 7% tax
         let activeLookupItem = null; // Store currently viewed item for recalculations
+        let currentSoundcareTerm = 2; // Default 2-year term
 
         function switchTab(tabName) {
             const scannerTab = document.getElementById('tab-scanner');
@@ -505,10 +518,13 @@
                     customerOptions.classList.add('hidden');
                 } else {
                     customerOptions.classList.remove('hidden');
-                    // Reset checkboxes
+                    // Reset checkboxes & state
                     document.getElementById('chk-discount').checked = false;
                     document.getElementById('chk-ima').checked = false;
                     document.getElementById('chk-soundcare').checked = false;
+                    currentSoundcareTerm = 2;
+                    updateTermButtonUI();
+                    document.getElementById('soundcare-term-container').classList.add('hidden');
                     recalculateTotals();
                 }
 
@@ -516,70 +532,137 @@
 
             } else {
                 activeLookupItem = null;
-                document.getElementById('res-sku-label').innerText = `SKU NOT IN FILES`;
-                document.getElementById('res-desc').innerText = "Product not found in loaded price tag files";
+                document.getElementById('res-sku-label').innerText = `SKU NOT FOUND`;
+                document.getElementById('res-desc').innerText = "No description available in uploaded sheets";
                 card.className = "bg-white border-2 border-rose-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
-                pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-rose-500 font-medium text-center py-2">SKU was not found in the loaded price tag files.</div>`;
+                pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-rose-600 font-semibold text-center py-2">SKU <code>${escapeHtml(cleanSku)}</code> was not found in the loaded spreadsheets.</div>`;
                 customerOptions.classList.add('hidden');
             }
-
-            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        function getSoundcareCost(price) {
-            if (price <= 29.99) return 4.99;
-            if (price <= 49.99) return 8.99;
-            if (price <= 74.99) return 13.99;
-            if (price <= 99.99) return 18.99;
-            if (price <= 149.99) return 23.99;
-            if (price <= 199.99) return 28.99;
-            if (price <= 249.99) return 49.99;
-            if (price <= 299.99) return 59.99;
-            if (price <= 399.99) return 69.99;
-            if (price <= 499.99) return 79.99;
-            if (price <= 599.99) return 89.99;
-            if (price <= 699.99) return 99.99;
-            if (price <= 799.99) return 109.99;
-            if (price <= 899.99) return 119.99;
-            if (price <= 999.99) return 129.99;
-            if (price <= 1199.99) return 139.99;
-            if (price <= 1499.99) return 149.99;
-            if (price <= 1999.99) return 179.99;
-            if (price <= 2999.99) return 219.99;
-            if (price <= 3999.99) return 299.99;
-            if (price <= 4999.99) return 399.99;
-            if (price <= 7499.99) return 549.99;
-            if (price <= 14999.99) return 999.99;
-            if (price <= 24999.99) return 1499.99;
-            if (price <= 37499.99) return 1999.99;
-            if (price <= 50000.00) return 2799.99;
-            return 0; // Higher than $50,000 does not qualify
+        function getSoundcareCost(price, term) {
+            if (term === 3) {
+                if (price >= 0 && price <= 199.99) return 0;
+                if (price <= 249.99) return 59.99;
+                if (price <= 299.99) return 69.99;
+                if (price <= 399.99) return 79.99;
+                if (price <= 499.99) return 94.99;
+                if (price <= 599.99) return 109.99;
+                if (price <= 699.99) return 124.99;
+                if (price <= 799.99) return 139.99;
+                if (price <= 899.99) return 154.99;
+                if (price <= 999.99) return 169.99;
+                if (price <= 1199.99) return 184.99;
+                if (price <= 1499.99) return 199.99;
+                if (price <= 1999.99) return 249.99;
+                if (price <= 2999.99) return 349.99;
+                if (price <= 3999.99) return 449.99;
+                if (price <= 4999.99) return 549.99;
+                if (price <= 7499.99) return 749.99;
+                if (price <= 14999.99) return 1399.99;
+                if (price <= 24999.99) return 2499.99;
+                if (price <= 37499.99) return 3799.99;
+                if (price <= 50000.00) return 4999.99;
+                return 0; 
+            } else if (term === 5) {
+                if (price >= 0 && price <= 199.99) return 0;
+                if (price <= 249.99) return 79.99;
+                if (price <= 299.99) return 99.99;
+                if (price <= 399.99) return 119.99;
+                if (price <= 499.99) return 149.99;
+                if (price <= 599.99) return 179.99;
+                if (price <= 699.99) return 209.99;
+                if (price <= 799.99) return 239.99;
+                if (price <= 899.99) return 269.99;
+                if (price <= 999.99) return 299.99;
+                if (price <= 1199.99) return 339.99;
+                if (price <= 1499.99) return 389.99;
+                if (price <= 1999.99) return 489.99;
+                if (price <= 2999.99) return 689.99;
+                if (price <= 3999.99) return 949.99;
+                if (price <= 4999.99) return 1149.99;
+                if (price <= 7499.99) return 1599.99;
+                if (price > 75000.00) return 0;
+                return 0;
+            } else {
+                // Default 2-year plan
+                if (price <= 29.99) return 4.99;
+                if (price <= 49.99) return 8.99;
+                if (price <= 74.99) return 13.99;
+                if (price <= 99.99) return 18.99;
+                if (price <= 149.99) return 23.99;
+                if (price <= 199.99) return 28.99;
+                if (price <= 249.99) return 49.99;
+                if (price <= 299.99) return 59.99;
+                if (price <= 399.99) return 69.99;
+                if (price <= 499.99) return 79.99;
+                if (price <= 599.99) return 89.99;
+                if (price <= 699.99) return 99.99;
+                if (price <= 799.99) return 109.99;
+                if (price <= 899.99) return 119.99;
+                if (price <= 999.99) return 129.99;
+                if (price <= 1199.99) return 139.99;
+                if (price <= 1499.99) return 149.99;
+                if (price <= 1999.99) return 179.99;
+                if (price <= 2999.99) return 219.99;
+                if (price <= 3999.99) return 299.99;
+                if (price <= 499.99) return 399.99;
+                if (price <= 7499.99) return 549.99;
+                if (price <= 14999.99) return 999.99;
+                if (price <= 24999.99) return 1499.99;
+                if (price <= 37499.99) return 1999.99;
+                if (price <= 50000.00) return 2799.99;
+                return 0;
+            }
+        }
+
+        function toggleSoundcareOptions() {
+            const isChecked = document.getElementById('chk-soundcare').checked;
+            const container = document.getElementById('soundcare-term-container');
+            if (isChecked) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+            recalculateTotals();
+        }
+
+        function setSoundcareTerm(term) {
+            currentSoundcareTerm = term;
+            updateTermButtonUI();
+            recalculateTotals();
+        }
+
+        function updateTermButtonUI() {
+            [2, 3, 5].forEach(t => {
+                const btn = document.getElementById(`term-btn-${t}`);
+                if (t === currentSoundcareTerm) {
+                    btn.className = "px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all";
+                }
+            });
         }
 
         function recalculateTotals() {
             if (!activeLookupItem) return;
 
-            // Determine primary price to use (Sell price takes priority if valid, else StorEDLP)
             let rawPriceStr = activeLookupItem.sell !== "N/A" && activeLookupItem.sell !== "" ? activeLookupItem.sell : activeLookupItem.edlp;
             let basePrice = parsePriceToNumber(rawPriceStr);
 
-            // Apply 10% discount if toggled
             const useDiscount = document.getElementById('chk-discount').checked;
             if (useDiscount) {
                 basePrice = basePrice * 0.90;
             }
 
-            // Calculate tax
             let taxAmount = basePrice * (currentTaxRate / 100);
             let subtotalWithTax = basePrice + taxAmount;
 
-            // Optional IMA Contract ($189.99 flat added after tax)
             const useIma = document.getElementById('chk-ima').checked;
             let imaCost = useIma ? 189.99 : 0;
 
-            // Optional Soundcare calculated based on initial item price before discount/tax
             let initialBasePrice = parsePriceToNumber(rawPriceStr);
-            let soundcareCost = getSoundcareCost(initialBasePrice);
+            let soundcareCost = getSoundcareCost(initialBasePrice, currentSoundcareTerm);
             const useSoundcare = document.getElementById('chk-soundcare').checked;
             let finalSoundcare = useSoundcare ? soundcareCost : 0;
 
