@@ -44,9 +44,9 @@
                     <i class="fa-solid fa-camera"></i>
                     <span class="hidden xs:inline sm:inline">Scanner</span>
                 </button>
-                <button id="nav-spreadsheet" onclick="switchTab('spreadsheet')" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-600 hover:text-slate-900">
-                    <i class="fa-solid fa-file-excel"></i>
-                    <span class="hidden xs:inline sm:inline">Database</span>
+                <button id="nav-cycle" onclick="switchTab('cycle')" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-600 hover:text-slate-900">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <span class="hidden xs:inline sm:inline">Cycle Count</span>
                 </button>
                 <button id="nav-settings" onclick="switchTab('settings')" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-600 hover:text-slate-900">
                     <i class="fa-solid fa-gear"></i>
@@ -194,62 +194,154 @@
             </div>
 
             <!-- Quick Database Status Banner -->
-            <div id="scanner-db-status" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>
-                    <span id="db-status-text">No price tag spreadsheet loaded yet. Please upload your price files.</span>
-                </div>
-                <button onclick="switchTab('spreadsheet')" class="font-bold underline hover:text-amber-900">Upload Files</button>
+        <div id="scanner-db-status" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>
+                <span id="db-status-text">No price tag spreadsheet loaded yet. Please upload your price files in Settings.</span>
             </div>
-
+            <button onclick="switchTab('settings')" class="font-bold underline hover:text-amber-900">Settings</button>
         </div>
 
-        <!-- TAB 2: SPREADSHEET UPLOAD & MANAGEMENT -->
-        <div id="tab-spreadsheet" class="hidden space-y-6">
-            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
-                <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-4 border border-emerald-100 shadow-xs">
+    </div>
+
+    <!-- TAB 2: CYCLE COUNT MODE -->
+    <div id="tab-cycle" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Physical Inventory Cycle Count</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Scan or enter SKUs to deduct expected counts and identify missing items.</p>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <button id="cycle-mode-btn" onclick="toggleCycleMode()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span id="cycle-mode-btn-text">Enter Cycle Count Mode</span>
+                </button>
+                <button onclick="exportUnscannedExcel()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-2">
                     <i class="fa-solid fa-file-excel"></i>
+                    <span>Export Remaining (.XLS)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Quantity Prompt Modal / Bar -->
+        <div id="cycle-qty-modal" class="hidden bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 shadow-sm animate-fade-in flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shrink-0">
+                    <i class="fa-solid fa-box"></i>
                 </div>
-                <h3 class="text-base font-bold text-slate-900">Upload Price Tag Spreadsheets</h3>
-                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">Upload your CSV or Excel files containing SKU, product description, selling price, and StorEDLP columns.</p>
-                
-                <div class="mt-6 flex justify-center">
-                    <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center space-x-2">
+                <div>
+                    <h4 id="cycle-prompt-sku" class="text-sm font-bold text-slate-900 font-mono"></h4>
+                    <p id="cycle-prompt-desc" class="text-xs text-slate-600"></p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 w-full sm:w-auto">
+                <div class="flex-1 sm:flex-none">
+                    <label class="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">Qty to Remove</label>
+                    <input type="number" id="cycle-deduct-qty" min="1" value="1" class="w-24 px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="flex items-end space-x-1 pt-5">
+                    <button onclick="confirmCycleDeduction()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-1.5 rounded-xl text-xs transition-all shadow-sm">Confirm</button>
+                    <button onclick="cancelCycleDeduction()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-3 py-1.5 rounded-xl text-xs transition-all">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cycle Count Active Status Banner -->
+        <div id="cycle-active-banner" class="hidden bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-circle-notch fa-spin text-blue-600"></i>
+                <span class="font-semibold">Cycle Count Mode Active: Scan or enter barcodes to automatically deduct inventory items.</span>
+            </div>
+            <button onclick="toggleCycleMode()" class="font-bold underline text-blue-900">Exit Mode</button>
+        </div>
+
+        <!-- Cycle List Table Container -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Remaining Cycle List</span>
+                    <span id="cycle-count-badge" class="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">0 Items</span>
+                </div>
+                <div class="text-xs text-slate-500">Showing items with expected physical inventory > 0</div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-100/70 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+                            <th class="p-3">Variant Number (SKU)</th>
+                            <th class="p-3">Item Description</th>
+                            <th class="p-3 text-right">Expected Physical Inventory</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cycle-table-body" class="divide-y divide-slate-100">
+                        <tr>
+                            <td colspan="3" class="p-6 text-center text-slate-400 italic">No cycle count spreadsheet loaded yet. Upload your inventory file below.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: SETTINGS -->
+    <div id="tab-settings" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+            <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">Application & Database Settings</h3>
+            
+            <!-- Price Tag Database Upload -->
+            <div class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">1. Price Tag Spreadsheets</h4>
+                <p class="text-xs text-slate-500">Upload your price tag CSV or Excel files containing SKU, product description, selling price, and StorEDLP columns.</p>
+                <div class="flex items-center gap-3">
+                    <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center space-x-2">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span>Browse Files</span>
+                        <span>Upload Price Files</span>
                         <input type="file" id="excel-file-input" multiple accept=".xlsx, .xls, .csv" onchange="handleFileSelect(event)" class="hidden">
                     </label>
                 </div>
-            </div>
-
-            <!-- Uploaded Files Summary -->
-            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Loaded Spreadsheets & SKU Count</h4>
-                <div id="loaded-files-list" class="divide-y divide-slate-100 text-sm">
-                    <div class="py-3 text-slate-400 italic text-xs">No spreadsheets uploaded in this session yet.</div>
+                <div id="loaded-files-list" class="divide-y divide-slate-100 text-xs mt-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div class="py-1 text-slate-400 italic">No price spreadsheets uploaded in this session yet.</div>
                 </div>
             </div>
-        </div>
 
-        <!-- TAB 3: SETTINGS -->
-        <div id="tab-settings" class="hidden space-y-6">
-            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">Application Settings</h3>
-                
+            <!-- Cycle Count Database Upload -->
+            <div class="pt-4 border-t border-slate-100 space-y-3">
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">2. Cycle Count Inventory Spreadsheet</h4>
+                <p class="text-xs text-slate-500">Upload the physical inventory spreadsheet with columns titled <strong>variant number</strong> and <strong>physical inventory</strong>.</p>
+                <div class="flex items-center gap-3">
+                    <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center space-x-2">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>Upload Cycle Count File</span>
+                        <input type="file" id="cycle-file-input" accept=".xlsx, .xls, .csv" onchange="handleCycleFileSelect(event)" class="hidden">
+                    </label>
+                </div>
+                <div id="cycle-loaded-file-info" class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span class="italic text-slate-400">No cycle count spreadsheet loaded yet.</span>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 space-y-4">
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tax & System Options</h4>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Default Sales Tax Percentage (%)</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Default Sales Tax Percentage (%)</label>
                     <div class="flex items-center space-x-3">
-                        <input type="number" step="0.01" id="tax-rate-input" value="7" onchange="updateTaxRate(this.value)" class="w-32 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        <input type="number" step="0.01" id="tax-rate-input" value="7" onchange="updateTaxRate(this.value)" class="w-32 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
                         <span class="text-xs text-slate-500">Default is 7%. Used for customer out-the-door calculations.</span>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-slate-100">
-                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Scanner Configuration</h4>
-                    <p class="text-xs text-slate-500">Barcode scanner is hard-locked to <strong>Code 128 Auto</strong> format for optimal store tag reading.</p>
+                <div class="pt-2">
+                    <label class="flex items-center justify-between cursor-pointer select-none">
+                        <div>
+                            <span class="block text-xs font-semibold text-slate-700">Tax Coverage Contracts (SoundCare / IMA)</span>
+                            <span class="text-xs text-slate-500 mt-0.5 block">Enable if operating in a state where extended service contracts are subject to sales tax.</span>
+                        </div>
+                        <input type="checkbox" id="tax-coverage-checkbox" onchange="updateTaxCoverageSetting(this.checked)" class="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                    </label>
                 </div>
             </div>
         </div>
+    </div>
 
     </main>
 
@@ -258,6 +350,7 @@
         let productDatabase = {}; // Key: SKU string, Value: { desc, sell, edlp }
         let loadedFilesData = [];
         let currentTaxRate = 7.0;
+        let taxCoverageContract = false; // Default false (Georgia rule)
         let isCameraActive = false;
         
         let activeLookupItem = null; 
@@ -268,17 +361,24 @@
         let currentSoundcareTerm = 2; // 2, 3, 5, or 'ima'
         let currentFinancingMonths = 6; // 6, 24, or 36
 
+        // Cycle Count state variables
+        let isCycleModeActive = false;
+        let cycleInventoryData = []; // Array of { sku, desc, expectedQty }
+        let pendingCycleSku = null;
+
         // Tab Navigation Controller
         function switchTab(tabId) {
-            ['scanner', 'spreadsheet', 'settings'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
+            ['scanner', 'cycle', 'settings'].forEach(t => {
+                let tabEl = document.getElementById(`tab-${t}`);
+                if (tabEl) tabEl.classList.add('hidden');
                 let navBtn = document.getElementById(`nav-${t}`);
                 if (navBtn) {
                     navBtn.className = "px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-600 hover:text-slate-900";
                 }
             });
 
-            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            let targetTab = document.getElementById(`tab-${tabId}`);
+            if (targetTab) targetTab.classList.remove('hidden');
             let activeNav = document.getElementById(`nav-${tabId}`);
             if (activeNav) {
                 activeNav.className = "px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 bg-white text-emerald-700 shadow-sm";
@@ -320,6 +420,11 @@
                 currentTaxRate = parsed;
                 recalculateTotals();
             }
+        }
+
+        function updateTaxCoverageSetting(isChecked) {
+            taxCoverageContract = isChecked;
+            recalculateTotals();
         }
 
         // Spreadsheet Parsing Logic
@@ -389,13 +494,238 @@
             const listEl = document.getElementById('loaded-files-list');
             listEl.innerHTML = "";
             loadedFilesData.forEach(f => {
-                listEl.innerHTML += `<div class="py-2.5 flex justify-between items-center"><span class="font-medium text-slate-800"><i class="fa-solid fa-file-excel text-emerald-600 mr-2"></i>${escapeHtml(f.name)}</span><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-semibold">${f.count} rows</span></div>`;
+                listEl.innerHTML += `<div class="py-2 flex justify-between items-center"><span class="font-medium text-slate-800"><i class="fa-solid fa-file-excel text-emerald-600 mr-2"></i>${escapeHtml(f.name)}</span><span class="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-semibold">${f.count} rows</span></div>`;
             });
 
             const totalSkus = Object.keys(productDatabase).length;
-            document.getElementById('db-status-text').innerText = `${totalSkus} SKUs loaded and ready in memory.`;
+            document.getElementById('db-status-text').innerText = `${totalSkus} price SKUs loaded and ready in memory.`;
             document.getElementById('scanner-db-status').className = "bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 flex items-center justify-between";
             document.getElementById('scanner-db-status').querySelector('i').className = "fa-solid fa-circle-check text-emerald-600 text-sm";
+        }
+
+        // Cycle Count Spreadsheet & Mode Logic
+        function handleCycleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    parseCycleRows(jsonRows, file.name);
+                } catch (err) {
+                    console.error(err);
+                    alertBox(`Failed to parse cycle file: ${file.name}`, "Parse Error", true);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseCycleRows(rows, filename) {
+            if (!rows || rows.length === 0) return;
+            let sampleRow = rows[0];
+            let keys = Object.keys(sampleRow);
+
+            let skuKey = keys.find(k => ['variant number', 'sku', 'item'].includes(k.trim().toLowerCase()));
+            let qtyKey = keys.find(k => ['physical inventory', 'inventory', 'qty', 'quantity', 'expected'].includes(k.trim().toLowerCase()));
+            
+            // Look for Brand Name and Product Name columns
+            let brandKey = keys.find(k => ['brand name', 'brand'].includes(k.trim().toLowerCase()));
+            let prodKey = keys.find(k => ['product name', 'product', 'title', 'description', 'prod desc'].includes(k.trim().toLowerCase()));
+            let descKey = keys.find(k => ['description', 'prod desc', 'item description', 'title'].includes(k.trim().toLowerCase()));
+
+            if (!skuKey || !qtyKey) {
+                alertBox("Could not find 'variant number' and 'physical inventory' columns in the uploaded file.", "Format Error", true);
+                return;
+            }
+
+            cycleInventoryData = [];
+            rows.forEach(row => {
+                let skuVal = String(row[skuKey]).trim();
+                if (!skuVal) return;
+                let qtyVal = parseFloat(row[qtyKey]);
+                if (isNaN(qtyVal)) qtyVal = 0;
+
+                let descVal = "";
+                if (brandKey && prodKey) {
+                    let brand = String(row[brandKey]).trim();
+                    let prod = String(row[prodKey]).trim();
+                    if (brand && prod) {
+                        descVal = `${brand}, ${prod}`;
+                    } else if (brand || prod) {
+                        descVal = brand || prod;
+                    }
+                }
+
+                if (!descVal && descKey) {
+                    descVal = String(row[descKey]).trim();
+                }
+
+                if (!descVal && productDatabase[skuVal]) {
+                    descVal = productDatabase[skuVal].desc;
+                }
+                if (!descVal) descVal = "No description";
+
+                cycleInventoryData.push({
+                    sku: skuVal,
+                    desc: descVal,
+                    expectedQty: qtyVal
+                });
+            });
+
+            document.getElementById('cycle-loaded-file-info').innerHTML = `<span class="font-semibold text-slate-800"><i class="fa-solid fa-file-excel text-emerald-600 mr-1.5"></i>${escapeHtml(filename)}</span> loaded successfully (${cycleInventoryData.length} items).`;
+            renderCycleTable();
+            alertBox(`Loaded ${cycleInventoryData.length} cycle count items successfully!`, "Cycle Inventory Ready");
+        }
+
+        function renderCycleTable() {
+            const tbody = document.getElementById('cycle-table-body');
+            const badge = document.getElementById('cycle-count-badge');
+            tbody.innerHTML = "";
+
+            let activeItems = cycleInventoryData.filter(item => item.expectedQty > 0);
+            badge.innerText = `${activeItems.length} Items`;
+
+            if (activeItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-slate-400 italic">All items accounted for or no cycle count list loaded.</td></tr>`;
+                return;
+            }
+
+            activeItems.forEach(item => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-all">
+                        <td class="p-3 font-mono font-bold text-slate-900">${escapeHtml(item.sku)}</td>
+                        <td class="p-3 text-slate-600">${escapeHtml(item.desc)}</td>
+                        <td class="p-3 text-right font-bold text-slate-800">${item.expectedQty}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function toggleCycleMode() {
+            if (cycleInventoryData.length === 0) {
+                alertBox("Please upload a cycle count spreadsheet in Settings first.", "No Data", true);
+                switchTab('settings');
+                return;
+            }
+
+            isCycleModeActive = !isCycleModeActive;
+            const btn = document.getElementById('cycle-mode-btn');
+            const btnText = document.getElementById('cycle-mode-btn-text');
+            const banner = document.getElementById('cycle-active-banner');
+
+            if (isCycleModeActive) {
+                btn.className = "flex-1 sm:flex-none bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-600/20 flex items-center justify-center space-x-2";
+                btnText.innerText = "Exit Cycle Count Mode";
+                banner.classList.remove('hidden');
+                switchTab('cycle');
+                // Also auto-start camera if convenient or prompt manual/camera scan
+                if (!isCameraActive) {
+                    startCamera();
+                }
+            } else {
+                btn.className = "flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2";
+                btnText.innerText = "Enter Cycle Count Mode";
+                banner.classList.add('hidden');
+                stopCamera();
+                cancelCycleDeduction();
+            }
+        }
+
+        function handleManualKeydown(e) {
+            if (e.key === 'Enter') {
+                if (isCycleModeActive) {
+                    submitCycleManualSku();
+                } else {
+                    submitManualSku();
+                }
+            }
+        }
+
+        function submitCycleManualSku() {
+            const input = document.getElementById('manual-sku-input');
+            const val = input.value.trim();
+            input.value = "";
+            if (!val) return;
+            processScannedCycleSku(val);
+        }
+
+        function onBarcodeDetected(result) {
+            if (result && result.codeResult && result.codeResult.code) {
+                let code = result.codeResult.code;
+                document.getElementById('manual-sku-input').value = code;
+                if (isCycleModeActive) {
+                    processScannedCycleSku(code);
+                } else {
+                    stopCamera();
+                    performLookup(code);
+                }
+            }
+        }
+
+        function processScannedCycleSku(sku) {
+            let found = cycleInventoryData.find(item => item.sku === sku && item.expectedQty > 0);
+            if (!found) {
+                alertBox(`SKU ${sku} not found in remaining cycle list or expected quantity is 0.`, "SKU Not Found", true);
+                return;
+            }
+
+            pendingCycleSku = sku;
+            document.getElementById('cycle-prompt-sku').innerText = `SKU: ${sku}`;
+            document.getElementById('cycle-prompt-desc').innerText = found.desc;
+            document.getElementById('cycle-deduct-qty').value = found.expectedQty;
+            document.getElementById('cycle-qty-modal').classList.remove('hidden');
+            document.getElementById('cycle-deduct-qty').focus();
+        }
+
+        function confirmCycleDeduction() {
+            if (!pendingCycleSku) return;
+            let qtyToRemove = parseFloat(document.getElementById('cycle-deduct-qty').value);
+            if (isNaN(qtyToRemove) || qtyToRemove <= 0) qtyToRemove = 1;
+
+            let item = cycleInventoryData.find(i => i.sku === pendingCycleSku);
+            if (item) {
+                item.expectedQty = Math.max(0, item.expectedQty - qtyToRemove);
+            }
+
+            cancelCycleDeduction();
+            renderCycleTable();
+            // Camera remains active for continuous scanning!
+        }
+
+        function cancelCycleDeduction() {
+            pendingCycleSku = null;
+            document.getElementById('cycle-qty-modal').classList.add('hidden');
+        }
+
+        function exportUnscannedExcel() {
+            if (cycleInventoryData.length === 0) {
+                alertBox("No cycle count data available to export.", "Export Error", true);
+                return;
+            }
+
+            let activeItems = cycleInventoryData.filter(i => i.expectedQty > 0);
+            if (activeItems.length === 0) {
+                alertBox("All items have been fully accounted for! No remaining unscanned items.", "Complete");
+                return;
+            }
+
+            let exportRows = activeItems.map(i => ({
+                "variant number": i.sku,
+                "description": i.desc,
+                "physical inventory": i.expectedQty
+            }));
+
+            let worksheet = XLSX.utils.json_to_sheet(exportRows);
+            let workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Remaining Unscanned");
+            XLSX.writeFile(workbook, "Remaining_Unscanned_Inventory.xlsx");
+            alertBox("Remaining unscanned items successfully exported to Excel (.xlsx)!", "Export Successful");
         }
 
         function escapeHtml(text) {
@@ -839,24 +1169,30 @@
 
             const useSoundcare = document.getElementById('chk-soundcare').checked;
             let coverageCost = 0;
+            let coverageTax = 0;
             if (useSoundcare) {
                 coverageCost = getSoundcareCost(initialBasePrice, currentSoundcareTerm);
+                if (taxCoverageContract && coverageCost > 0) {
+                    coverageTax = coverageCost * (currentTaxRate / 100);
+                }
                 let costPreviewEl = document.getElementById('soundcare-cost-preview');
                 if (costPreviewEl) {
                     if (coverageCost > 0) {
-                        costPreviewEl.innerText = `${currentSoundcareTerm === 'ima' ? '2-Year IMA' : currentSoundcareTerm + '-Year Plan'} Cost: $${coverageCost.toFixed(2)}`;
+                        let taxNote = (taxCoverageContract && coverageTax > 0) ? ` (inc. $${coverageTax.toFixed(2)} tax)` : '';
+                        costPreviewEl.innerText = `${currentSoundcareTerm === 'ima' ? '2-Year IMA' : currentSoundcareTerm + '-Year Plan'} Cost: $${coverageCost.toFixed(2)}${taxNote}`;
                     } else {
                         costPreviewEl.innerText = `Item does not qualify for ${currentSoundcareTerm === 'ima' ? 'IMA' : currentSoundcareTerm + '-Year'} coverage at this price point ($0.00).`;
                     }
                 }
             }
 
-            let finalTotal = subtotalWithTax + coverageCost;
+            let finalTotal = subtotalWithTax + coverageCost + coverageTax;
 
             updateFinancingUI(finalTotal);
 
             let discountText = useDiscount ? ` + ${currentDiscountPercent}% Discount` : '';
-            document.getElementById('breakdown-tax-label').innerText = `${useDiscount ? 'Discounted base + ' : ''}Includes ${currentTaxRate}% Tax${discountText}`;
+            let coverageTaxText = (taxCoverageContract && useSoundcare && coverageCost > 0) ? ' + Coverage Tax' : '';
+            document.getElementById('breakdown-tax-label').innerText = `${useDiscount ? 'Discounted base + ' : ''}Includes ${currentTaxRate}% Tax${discountText}${coverageTaxText}`;
             document.getElementById('res-final-total').innerText = `$${finalTotal.toFixed(2)}`;
         }
     </script>
