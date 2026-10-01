@@ -43,7 +43,11 @@
             </button>
             <button onclick="switchTab('spreadsheet')" id="tab-btn-spreadsheet" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2">
                 <i class="fa-solid fa-file-excel"></i>
-                <span>Price Tag Files</span>
+                <span>Price Files</span>
+            </button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-gear"></i>
+                <span>Settings</span>
             </button>
         </div>
 
@@ -69,6 +73,35 @@
                 <div id="res-prices-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
                     <!-- Dynamically populated based on available pricing data columns -->
                 </div>
+
+                <!-- Customer Customization Options (Discounts & Contracts) -->
+                <div id="res-customer-options" class="hidden mt-5 pt-4 border-t border-slate-100 bg-slate-50 p-4 rounded-xl space-y-3">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Customer Options & Add-ons</h4>
+                    
+                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
+                        <input type="checkbox" id="chk-discount" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span>Apply 10% Discount (applied before tax)</span>
+                    </label>
+
+                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
+                        <input type="checkbox" id="chk-ima" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span>Add IMA Contract (<span id="ima-cost-label">$189.99</span>)</span>
+                    </label>
+
+                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
+                        <input type="checkbox" id="chk-soundcare" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span>Add Soundcare Protection Plan (<span id="soundcare-cost-label">$0.00</span>)</span>
+                    </label>
+
+                    <!-- Out-The-Door Final Total Breakdown -->
+                    <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
+                        <div>
+                            <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">Out-The-Door Total</span>
+                            <div class="text-xs text-slate-500" id="breakdown-tax-label">Includes 7% Tax</div>
+                        </div>
+                        <div class="text-2xl font-extrabold text-indigo-700" id="res-final-total">$0.00</div>
+                    </div>
+                </div>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-5">
@@ -89,7 +122,7 @@
                         <div class="w-3/4 h-16 border-2 border-red-500 rounded-lg animate-pulse"></div>
                     </div>
                 </div>
-                <p class="text-xs text-slate-500 text-center">Align Code 128 barcode within the target frame to scan automatically.</p>
+                <p class="text-xs text-slate-500 text-center">Align Code 128 Auto barcode within the target frame to scan automatically.</p>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -98,7 +131,7 @@
                     <span>Manual SKU Entry</span>
                 </h3>
                 <div class="flex space-x-2">
-                    <input type="number" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type numeric SKU..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type numeric SKU..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
                     <button onclick="lookupManualSku()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-sm">
                         Lookup
                     </button>
@@ -165,6 +198,26 @@
 
         </div>
 
+        <!-- TAB 3: SETTINGS -->
+        <div id="tab-settings" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                <h3 class="font-bold text-lg text-slate-800">Tax & Calculation Settings</h3>
+                <p class="text-sm text-slate-500">Configure default tax rates applied to out-the-door totals.</p>
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Sales Tax Percentage (%)</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="number" step="0.01" id="input-tax-rate" value="7.0" class="w-32 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                        <span class="text-sm font-semibold text-slate-600">%</span>
+                        <button onclick="saveTaxRate()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-all shadow-sm">
+                            Save Tax Rate
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Default is set to 7.0%.</p>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <script>
@@ -172,26 +225,51 @@
         let rawProductArray = []; // Array for preview table
         let loadedFilesInfo = []; // Track loaded file names & dates
         let isCameraActive = false;
+        let currentTaxRate = 7.0; // Default 7% tax
+        let activeLookupItem = null; // Store currently viewed item for recalculations
 
         function switchTab(tabName) {
             const scannerTab = document.getElementById('tab-scanner');
             const spreadsheetTab = document.getElementById('tab-spreadsheet');
+            const settingsTab = document.getElementById('tab-settings');
+            
             const btnScanner = document.getElementById('tab-btn-scanner');
             const btnSpreadsheet = document.getElementById('tab-btn-spreadsheet');
+            const btnSettings = document.getElementById('tab-btn-settings');
+
+            scannerTab.classList.add('hidden');
+            spreadsheetTab.classList.add('hidden');
+            settingsTab.classList.add('hidden');
+
+            btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
+            btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
+            btnSettings.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
 
             if (tabName === 'scanner') {
                 scannerTab.classList.remove('hidden');
-                spreadsheetTab.classList.add('hidden');
                 btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
-                btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
-            } else {
-                scannerTab.classList.add('hidden');
+            } else if (tabName === 'spreadsheet') {
                 spreadsheetTab.classList.remove('hidden');
                 btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
-                btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
-                if (isCameraActive) {
-                    stopCamera();
-                }
+                if (isCameraActive) stopCamera();
+            } else if (tabName === 'settings') {
+                settingsTab.classList.remove('hidden');
+                btnSettings.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
+                if (isCameraActive) stopCamera();
+            }
+        }
+
+        function saveTaxRate() {
+            const input = document.getElementById('input-tax-rate');
+            const val = parseFloat(input.value);
+            if (isNaN(val) || val < 0) {
+                alertBox("Please enter a valid tax percentage.");
+                return;
+            }
+            currentTaxRate = val;
+            alertBox(`Tax rate updated to ${currentTaxRate}%`);
+            if (activeLookupItem) {
+                recalculateTotals();
             }
         }
 
@@ -378,12 +456,14 @@
             const item = productDatabase[cleanSku];
             const card = document.getElementById('result-card');
             const pricesGrid = document.getElementById('res-prices-grid');
+            const customerOptions = document.getElementById('res-customer-options');
             
             card.classList.remove('hidden');
             document.getElementById('res-sku-val').innerText = cleanSku;
             pricesGrid.innerHTML = "";
 
             if (item) {
+                activeLookupItem = { sku: cleanSku, ...item };
                 document.getElementById('res-sku-label').innerText = `SKU MATCH FOUND`;
                 document.getElementById('res-desc').innerText = item.desc;
                 card.className = "bg-white border-2 border-emerald-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
@@ -392,42 +472,135 @@
 
                 if (item.sell !== "N/A" && item.sell !== "") {
                     hasPrices = true;
+                    let baseNum = parsePriceToNumber(item.sell);
+                    let taxAmount = baseNum * (currentTaxRate / 100);
+                    let totalWithTax = baseNum + taxAmount;
+
                     pricesGrid.innerHTML += `
                         <div class="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
                             <span class="text-xs font-semibold text-emerald-600 uppercase">Sell Price</span>
                             <div class="text-2xl font-extrabold text-emerald-700 mt-1">${formatPrice(item.sell)}</div>
+                            <div class="text-xs text-slate-500 mt-1">+ Tax (${currentTaxRate}%): <span class="font-semibold text-slate-700">$${totalWithTax.toFixed(2)}</span></div>
                         </div>
                     `;
                 }
 
                 if (item.edlp !== "N/A" && item.edlp !== "") {
                     hasPrices = true;
+                    let baseNum = parsePriceToNumber(item.edlp);
+                    let taxAmount = baseNum * (currentTaxRate / 100);
+                    let totalWithTax = baseNum + taxAmount;
+
                     pricesGrid.innerHTML += `
                         <div class="bg-blue-50 rounded-xl p-3.5 border border-blue-100">
                             <span class="text-xs font-semibold text-blue-600 uppercase">StorEDLP Price</span>
                             <div class="text-2xl font-extrabold text-blue-700 mt-1">${formatPrice(item.edlp)}</div>
+                            <div class="text-xs text-slate-500 mt-1">+ Tax (${currentTaxRate}%): <span class="font-semibold text-slate-700">$${totalWithTax.toFixed(2)}</span></div>
                         </div>
                     `;
                 }
 
                 if (!hasPrices) {
                     pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-slate-500 italic text-center py-2">No pricing data available for this SKU.</div>`;
+                    customerOptions.classList.add('hidden');
+                } else {
+                    customerOptions.classList.remove('hidden');
+                    // Reset checkboxes
+                    document.getElementById('chk-discount').checked = false;
+                    document.getElementById('chk-ima').checked = false;
+                    document.getElementById('chk-soundcare').checked = false;
+                    recalculateTotals();
                 }
 
                 pricesGrid.className = `grid grid-cols-1 ${pricesGrid.children.length > 1 ? 'sm:grid-cols-2' : ''} gap-4 mt-4 pt-4 border-t border-slate-100`;
 
             } else {
+                activeLookupItem = null;
                 document.getElementById('res-sku-label').innerText = `SKU NOT IN FILES`;
                 document.getElementById('res-desc').innerText = "Product not found in loaded price tag files";
                 card.className = "bg-white border-2 border-rose-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
                 pricesGrid.innerHTML = `<div class="col-span-2 text-sm text-rose-500 font-medium text-center py-2">SKU was not found in the loaded price tag files.</div>`;
+                customerOptions.classList.add('hidden');
             }
 
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
+        function getSoundcareCost(price) {
+            if (price <= 29.99) return 4.99;
+            if (price <= 49.99) return 8.99;
+            if (price <= 74.99) return 13.99;
+            if (price <= 99.99) return 18.99;
+            if (price <= 149.99) return 23.99;
+            if (price <= 199.99) return 28.99;
+            if (price <= 249.99) return 49.99;
+            if (price <= 299.99) return 59.99;
+            if (price <= 399.99) return 69.99;
+            if (price <= 499.99) return 79.99;
+            if (price <= 599.99) return 89.99;
+            if (price <= 699.99) return 99.99;
+            if (price <= 799.99) return 109.99;
+            if (price <= 899.99) return 119.99;
+            if (price <= 999.99) return 129.99;
+            if (price <= 1199.99) return 139.99;
+            if (price <= 1499.99) return 149.99;
+            if (price <= 1999.99) return 179.99;
+            if (price <= 2999.99) return 219.99;
+            if (price <= 3999.99) return 299.99;
+            if (price <= 4999.99) return 399.99;
+            if (price <= 7499.99) return 549.99;
+            if (price <= 14999.99) return 999.99;
+            if (price <= 24999.99) return 1499.99;
+            if (price <= 37499.99) return 1999.99;
+            if (price <= 50000.00) return 2799.99;
+            return 0; // Higher than $50,000 does not qualify
+        }
+
+        function recalculateTotals() {
+            if (!activeLookupItem) return;
+
+            // Determine primary price to use (Sell price takes priority if valid, else StorEDLP)
+            let rawPriceStr = activeLookupItem.sell !== "N/A" && activeLookupItem.sell !== "" ? activeLookupItem.sell : activeLookupItem.edlp;
+            let basePrice = parsePriceToNumber(rawPriceStr);
+
+            // Apply 10% discount if toggled
+            const useDiscount = document.getElementById('chk-discount').checked;
+            if (useDiscount) {
+                basePrice = basePrice * 0.90;
+            }
+
+            // Calculate tax
+            let taxAmount = basePrice * (currentTaxRate / 100);
+            let subtotalWithTax = basePrice + taxAmount;
+
+            // Optional IMA Contract ($189.99 flat added after tax)
+            const useIma = document.getElementById('chk-ima').checked;
+            let imaCost = useIma ? 189.99 : 0;
+
+            // Optional Soundcare calculated based on initial item price before discount/tax
+            let initialBasePrice = parsePriceToNumber(rawPriceStr);
+            let soundcareCost = getSoundcareCost(initialBasePrice);
+            const useSoundcare = document.getElementById('chk-soundcare').checked;
+            let finalSoundcare = useSoundcare ? soundcareCost : 0;
+
+            document.getElementById('soundcare-cost-label').innerText = `$${soundcareCost.toFixed(2)}`;
+
+            let finalTotal = subtotalWithTax + imaCost + finalSoundcare;
+
+            document.getElementById('breakdown-tax-label').innerText = `Includes ${currentTaxRate}% Tax${useDiscount ? ' + 10% Discount' : ''}`;
+            document.getElementById('res-final-total').innerText = `$${finalTotal.toFixed(2)}`;
+        }
+
+        function parsePriceToNumber(val) {
+            if (val === "N/A" || val === undefined || val === null || val === "") return 0;
+            let str = String(val).replace(/[^0-9.]/g, '');
+            let num = Number(str);
+            return isNaN(num) ? 0 : num;
+        }
+
         function clearResult() {
             document.getElementById('result-card').classList.add('hidden');
+            activeLookupItem = null;
         }
 
         function formatPrice(val) {
