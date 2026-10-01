@@ -4,346 +4,362 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Tag Checker</title>
-    <!-- Tailwind CSS for styling -->
+    <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS (xlsx) for handling .xls and .xlsx files -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- QuaggaJS for barcode scanning via device camera -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-    <!-- FontAwesome for icons -->
+    <!-- FontAwesome for professional icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS for Excel spreadsheet parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- QuaggaJS for Code 128 Auto barcode scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        #interactive.viewport video { width: 100%; height: auto; max-height: 350px; object-fit: cover; border-radius: 1rem; }
-        #interactive.viewport canvas.drawing, #interactive.viewport canvas.drawingBuffer { display: none; }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.25s ease-out forwards;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
 
-    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center space-x-2">
-                <i class="fa-solid fa-barcode text-2xl"></i>
-                <h1 class="text-lg font-bold tracking-tight">Price Tag Checker</h1>
+    <!-- Header Navigation -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
+                    <i class="fa-solid fa-barcode text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900 leading-tight">Price Tag Checker</h1>
+                    <p class="text-xs text-slate-500 font-medium">Store Floor Edition</p>
+                </div>
             </div>
-            <div id="status-badge" class="bg-indigo-700 text-xs px-2.5 py-1 rounded-full font-medium flex items-center space-x-1">
-                <span class="w-2 h-2 rounded-full bg-amber-400 inline-block" id="db-status-dot"></span>
-                <span id="db-status-text">No Files Loaded</span>
+            
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button id="nav-scanner" onclick="switchTab('scanner')" class="px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-emerald-700 shadow-sm">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>Scanner</span>
+                </button>
+                <button id="nav-spreadsheet" onclick="switchTab('spreadsheet')" class="px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 text-slate-600 hover:text-slate-900">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Database</span>
+                </button>
+                <button id="nav-settings" onclick="switchTab('settings')" class="px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 text-slate-600 hover:text-slate-900">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                </button>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 max-w-4xl w-full mx-auto p-4 pb-20">
-        
-        <div class="flex bg-slate-200 p-1 rounded-xl mb-6 shadow-inner">
-            <button onclick="switchTab('scanner')" id="tab-btn-scanner" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2">
-                <i class="fa-solid fa-camera"></i>
-                <span>Scanner & Manual</span>
-            </button>
-            <button onclick="switchTab('spreadsheet')" id="tab-btn-spreadsheet" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2">
-                <i class="fa-solid fa-file-excel"></i>
-                <span>Price Files</span>
-            </button>
-            <button onclick="switchTab('settings')" id="tab-btn-settings" class="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2">
-                <i class="fa-solid fa-gear"></i>
-                <span>Settings</span>
-            </button>
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6">
+
+        <!-- Custom Notification Message Box (Replaces alert()) -->
+        <div id="custom-alert" class="hidden mb-6 p-4 rounded-xl border flex items-start space-x-3 transition-all animate-fade-in shadow-sm">
+            <div id="alert-icon-container" class="mt-0.5 text-lg"></div>
+            <div class="flex-1">
+                <h4 id="alert-title" class="text-sm font-bold"></h4>
+                <p id="alert-message" class="text-xs mt-0.5"></p>
+            </div>
+            <button onclick="hideAlert()" class="text-slate-400 hover:text-slate-600 text-sm font-bold px-2">&times;</button>
         </div>
 
-        <!-- TAB 1: SCANNER & MANUAL LOOKUP -->
+        <!-- TAB 1: SCANNER & LOOKUP -->
         <div id="tab-scanner" class="space-y-6">
             
-            <div id="result-card" class="hidden bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in">
-                <div class="flex justify-between items-start mb-2">
-                    <div>
-                        <span class="text-xs uppercase tracking-wider font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-md" id="res-sku-label">SKU: --</span>
-                        <h2 class="text-2xl font-bold text-slate-800 mt-2" id="res-sku-val">--</h2>
+            <!-- Manual Entry & Camera Toggle Card -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Look Up Item by SKU or Barcode</label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </span>
+                        <input type="number" pattern="[0-9]*" inputmode="numeric" id="manual-sku-input" onkeydown="handleManualKeydown(event)" placeholder="Enter numeric SKU..." class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
                     </div>
-                    <button onclick="clearResult()" class="text-slate-400 hover:text-slate-600 p-1">
-                        <i class="fa-solid fa-xmark text-lg"></i>
+                    <button onclick="submitManualSku()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center space-x-2">
+                        <span>Search</span>
+                    </button>
+                    <button id="toggle-camera-btn" onclick="toggleCamera()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-all shadow-md flex items-center space-x-2">
+                        <i class="fa-solid fa-camera"></i>
+                        <span id="cam-btn-text">Scan Barcode</span>
                     </button>
                 </div>
-                
-                <!-- Product Description -->
-                <div id="res-desc-container" class="mb-4 text-slate-600 text-sm font-medium">
-                    <span id="res-desc" class="italic text-slate-500">No description available</span>
+
+                <!-- Camera Stream Viewport Container -->
+                <div id="camera-container" class="hidden mt-4 relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-video flex items-center justify-center">
+                    <div id="interactive" class="viewport w-full h-full relative"></div>
+                    <div class="absolute inset-0 border-2 border-emerald-500/40 pointer-events-none flex items-center justify-center">
+                        <div class="w-3/4 h-24 border-2 border-dashed border-emerald-400 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div class="absolute bottom-3 bg-slate-900/80 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-lg">
+                        Align Code 128 Auto Barcode within frame
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Card (Initially Hidden) -->
+            <div id="result-card" class="hidden bg-white border-2 border-emerald-200 rounded-2xl p-5 shadow-lg transition-all animate-fade-in">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span id="res-sku-label" class="text-xs font-bold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg uppercase tracking-wider">SKU Match Found</span>
+                        <h3 id="res-sku-val" class="text-lg font-mono font-bold text-slate-900 mt-2"></h3>
+                    </div>
+                    <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Loaded in memory</span>
                 </div>
 
+                <div class="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span class="font-semibold text-slate-700">Description:</span> <span id="res-desc"></span>
+                </div>
+
+                <!-- Dynamic Pricing Grid (Clickable Sell vs StorEDLP) -->
                 <div id="res-prices-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-100">
-                    <!-- Dynamically populated based on available pricing data columns -->
+                    <!-- Populated dynamically via JS -->
                 </div>
 
-                <!-- Customer Customization Options (Discounts & Contracts) -->
-                <div id="res-customer-options" class="hidden mt-5 pt-4 border-t border-slate-100 bg-slate-50 p-4 rounded-xl space-y-3">
-                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Customer Options & Add-ons</h4>
-                    
-                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
-                        <input type="checkbox" id="chk-discount" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                        <span>Apply 10% Discount (applied before tax)</span>
-                    </label>
+                <!-- Customer Options & Add-ons Box -->
+                <div id="res-customer-options" class="mt-5 pt-5 border-t border-slate-100 space-y-4">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Customer Options & Add-ons</h4>
 
-                    <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
-                        <input type="checkbox" id="chk-ima" onchange="recalculateTotals()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                        <span>Add IMA Contract (<span id="ima-cost-label">$189.99</span>)</span>
-                    </label>
-
-                    <div class="space-y-2 pt-2 border-t border-slate-200">
-                        <label class="flex items-center space-x-3 cursor-pointer text-sm font-medium text-slate-700">
-                            <input type="checkbox" id="chk-soundcare" onchange="toggleSoundcareOptions()" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                            <span>Add Soundcare Protection Plan (<span id="soundcare-cost-label">$0.00</span>)</span>
+                    <!-- 1. Variable Discount Checkbox & Slider Widget -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 transition-all">
+                        <label class="flex items-center justify-between cursor-pointer select-none">
+                            <div class="flex items-center space-x-3">
+                                <input type="checkbox" id="chk-discount" onchange="toggleDiscountWidget()" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                                <span class="text-sm font-semibold text-slate-800">Discount (before tax)</span>
+                            </div>
+                            <span id="discount-val-label" class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">10%</span>
                         </label>
-                        
-                        <!-- Soundcare Term Selector Widget -->
-                        <div id="soundcare-term-container" class="hidden pl-7 pt-1 flex items-center space-x-2">
-                            <span class="text-xs font-semibold text-slate-500">Term:</span>
-                            <div class="inline-flex bg-slate-200 p-0.5 rounded-lg text-xs font-semibold">
-                                <button type="button" onclick="setSoundcareTerm(2)" id="term-btn-2" class="px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all">2-Year</button>
-                                <button type="button" onclick="setSoundcareTerm(3)" id="term-btn-3" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all">3-Year</button>
-                                <button type="button" onclick="setSoundcareTerm(5)" id="term-btn-5" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all">5-Year</button>
+                        <div id="discount-slider-container" class="hidden mt-3 pt-3 border-t border-slate-200">
+                            <div class="flex justify-between text-xs text-slate-500 mb-1">
+                                <span>5%</span>
+                                <span class="font-semibold text-slate-700">Drag to adjust discount percentage</span>
+                                <span>15%</span>
+                            </div>
+                            <input type="range" id="discount-range" min="5" max="15" step="1" value="10" oninput="onDiscountSliderChange(this.value)" class="w-full accent-emerald-600 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- 2. Coverage Widget (SoundCare 2, 3, 5 Year & 2-Year IMA) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 transition-all">
+                        <label class="flex items-center justify-between cursor-pointer select-none">
+                            <div class="flex items-center space-x-3">
+                                <input type="checkbox" id="chk-soundcare" onchange="toggleSoundcareWidget()" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                                <span class="text-sm font-semibold text-slate-800">Add Coverage</span>
+                            </div>
+                            <span id="soundcare-badge" class="text-xs font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-lg">Optional</span>
+                        </label>
+                        <div id="soundcare-term-container" class="hidden mt-3 pt-3 border-t border-slate-200 space-y-2">
+                            <span class="text-xs font-medium text-slate-500 block">Select coverage plan:</span>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <button type="button" id="btn-term-2" onclick="setSoundcareTerm(2)" class="py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center">2-Yr SoundCare</button>
+                                <button type="button" id="btn-term-3" onclick="setSoundcareTerm(3)" class="py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center">3-Yr SoundCare</button>
+                                <button type="button" id="btn-term-5" onclick="setSoundcareTerm(5)" class="py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center">5-Yr SoundCare</button>
+                                <button type="button" id="btn-term-ima" onclick="setSoundcareTerm('ima')" class="py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center">2-Year IMA</button>
+                            </div>
+                            <div id="soundcare-cost-preview" class="text-xs text-slate-600 font-medium mt-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Financing Widget -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 transition-all">
+                        <label class="flex items-center justify-between cursor-pointer select-none">
+                            <div class="flex items-center space-x-3">
+                                <input type="checkbox" id="chk-financing" onchange="toggleFinancingWidget()" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                                <span class="text-sm font-semibold text-slate-800">Customer Financing Options</span>
+                            </div>
+                            <span id="financing-badge" class="text-xs font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-lg">Installments</span>
+                        </label>
+                        <div id="financing-term-container" class="hidden mt-3 pt-3 border-t border-slate-200 space-y-2">
+                            <span id="financing-info-text" class="text-xs font-medium text-slate-500 block">Select available installment plan:</span>
+                            <div id="financing-buttons-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <!-- Populated dynamically based on ticket thresholds -->
                             </div>
                         </div>
                     </div>
 
-                    <!-- Out-The-Door Final Total Breakdown -->
-                    <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100">
-                        <div>
-                            <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">Out-The-Door Total</span>
-                            <div class="text-xs text-slate-500" id="breakdown-tax-label">Includes 7% Tax</div>
-                        </div>
-                        <div class="text-2xl font-extrabold text-indigo-700" id="res-final-total">$0.00</div>
+                </div>
+
+                <!-- Out-The-Door Total Card -->
+                <div class="mt-5 bg-emerald-900 text-white p-5 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <span class="text-xs uppercase font-bold tracking-wider text-emerald-300">Out-The-Door Total</span>
+                        <div id="breakdown-tax-label" class="text-xs text-emerald-200 mt-0.5">Includes 7% Tax</div>
+                    </div>
+                    <div class="text-right">
+                        <div id="res-final-total" class="text-3xl font-extrabold text-white tracking-tight">$0.00</div>
+                        <div id="res-monthly-installment" class="hidden text-xs font-semibold text-emerald-200 mt-0.5"></div>
                     </div>
                 </div>
+
             </div>
 
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-5">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-semibold text-slate-800 flex items-center space-x-2">
-                        <i class="fa-solid fa-camera text-indigo-600"></i>
-                        <span>Tap here to scan SKU</span>
-                    </h3>
-                    <button id="camera-toggle-btn" onclick="toggleCamera()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm">
-                        Start Camera
-                    </button>
+            <!-- Quick Database Status Banner -->
+            <div id="scanner-db-status" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i>
+                    <span id="db-status-text">No price tag spreadsheet loaded yet. Please upload your price files.</span>
                 </div>
-
-                <!-- Camera Viewport Container -->
-                <div id="camera-container" class="relative hidden bg-black rounded-xl overflow-hidden mb-4">
-                    <div id="interactive" class="viewport"></div>
-                    <div class="absolute inset-0 border-2 border-indigo-400 border-dashed rounded-xl pointer-events-none opacity-60 flex items-center justify-center">
-                        <div class="w-3/4 h-16 border-2 border-red-500 rounded-lg animate-pulse"></div>
-                    </div>
-                </div>
-                <p class="text-xs text-slate-500 text-center">Scan the Barcode on your Price Tag. You need good lighting to scan, and the barcode format needs to be "Code 128" in the Dymo File.</p>
-            </div>
-
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                <h3 class="font-semibold text-slate-800 mb-3 flex items-center space-x-2">
-                    <i class="fa-solid fa-keyboard text-indigo-600"></i>
-                    <span>Manual SKU Entry</span>
-                </h3>
-                <div class="flex space-x-2">
-                    <input type="tel" inputmode="numeric" pattern="[0-9]*" id="manual-sku-input" placeholder="Type SKU here" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
-                    <button onclick="lookupManualSku()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-sm">
-                        Lookup
-                    </button>
-                </div>
+                <button onclick="switchTab('spreadsheet')" class="font-bold underline hover:text-amber-900">Upload Files</button>
             </div>
 
         </div>
 
-        <!-- TAB 2: PRICE TAG FILES MANAGER -->
+        <!-- TAB 2: SPREADSHEET UPLOAD & MANAGEMENT -->
         <div id="tab-spreadsheet" class="hidden space-y-6">
-            
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h3 class="font-bold text-lg text-slate-800 mb-2">Upload Price Tag Spreadsheets</h3>
-                <p class="text-sm text-slate-500 mb-6">Upload up to two spreadsheets (<code>.xls</code> or <code>.xlsx</code>). The app will automatically merge and search SKUs across both files.</p>
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
+                <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-4 border border-emerald-100 shadow-xs">
+                    <i class="fa-solid fa-file-excel"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-900">Upload Price Tag Spreadsheets</h3>
+                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">Upload your CSV or Excel files containing SKU, product description, selling price, and StorEDLP columns.</p>
                 
-                <!-- File Upload Dropzone (Supports Multiple) -->
-                <label class="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/50 rounded-2xl p-8 cursor-pointer transition-all">
-                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-3 text-xl">
-                        <i class="fa-solid fa-file-excel"></i>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 mb-1" id="file-label-text">Click to browse or drop up to 2 files</span>
-                    <span class="text-xs text-slate-400">Supports Excel format (.xls, .xlsx)</span>
-                    <input type="file" id="excel-file-input" accept=".xls, .xlsx, .csv" multiple class="hidden" onchange="handleExcelUpload(event)">
-                </label>
-            </div>
-
-            <!-- Spreadsheet Info & Quick Table View -->
-            <div id="spreadsheet-preview-card" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <div>
-                        <h4 class="font-bold text-slate-800" id="db-filename">Loaded Files</h4>
-                        <p class="text-xs text-slate-500 mt-0.5"><span id="db-row-count">0</span> items indexed • Latest Update: <span id="db-update-date" class="font-semibold text-indigo-600">--</span></p>
-                    </div>
-                    <button onclick="clearDatabase()" class="text-rose-600 hover:bg-rose-50 text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-200 transition-all">
-                        Clear Data
-                    </button>
-                </div>
-
-                <!-- Sample Data Preview Table -->
-                <div class="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table class="w-full text-left text-xs text-slate-600">
-                        <thead class="bg-slate-100 font-semibold text-slate-700 uppercase tracking-wider">
-                            <tr>
-                                <th class="p-3">SKU</th>
-                                <th class="p-3">Description</th>
-                                <th class="p-3">Sell</th>
-                                <th class="p-3">StorEDLP</th>
-                            </tr>
-                        </thead>
-                        <tbody id="preview-table-body" class="divide-y divide-slate-100">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+                <div class="mt-6 flex justify-center">
+                    <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center space-x-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Browse Files</span>
+                        <input type="file" id="excel-file-input" multiple accept=".xlsx, .xls, .csv" onchange="handleFileSelect(event)" class="hidden">
+                    </label>
                 </div>
             </div>
 
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start space-x-3">
-                <i class="fa-solid fa-lightbulb text-amber-500 text-xl mt-0.5"></i>
-                <div>
-                    <h4 class="text-sm font-bold text-amber-800">File Date & Header Information</h4>
-                    <p class="text-xs text-amber-700 mt-1">The app reads dates found in filenames or file properties to show the most recent update. Make sure sheets contain a column labeled <code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">SKU</code>, description (<code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">Prod Desc</code> or <code class="bg-amber-100 px-1.5 py-0.5 rounded font-mono">Brand Model</code>), and pricing info.</p>
+            <!-- Uploaded Files Summary -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Loaded Spreadsheets & SKU Count</h4>
+                <div id="loaded-files-list" class="divide-y divide-slate-100 text-sm">
+                    <div class="py-3 text-slate-400 italic text-xs">No spreadsheets uploaded in this session yet.</div>
                 </div>
             </div>
-
         </div>
 
         <!-- TAB 3: SETTINGS -->
         <div id="tab-settings" class="hidden space-y-6">
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-                <h3 class="font-bold text-lg text-slate-800">Tax & Calculation Settings</h3>
-                <p class="text-sm text-slate-500">Configure default tax rates applied to out-the-door totals.</p>
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <h3 class="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">Application Settings</h3>
                 
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Sales Tax Percentage (%)</label>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Default Sales Tax Percentage (%)</label>
                     <div class="flex items-center space-x-3">
-                        <input type="number" step="0.01" id="input-tax-rate" value="7.0" class="w-32 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
-                        <span class="text-sm font-semibold text-slate-600">%</span>
-                        <button onclick="saveTaxRate()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-all shadow-sm">
-                            Save Tax Rate
-                        </button>
+                        <input type="number" step="0.01" id="tax-rate-input" value="7" onchange="updateTaxRate(this.value)" class="w-32 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        <span class="text-xs text-slate-500">Default is 7%. Used for customer out-the-door calculations.</span>
                     </div>
-                    <p class="text-xs text-slate-400 mt-1">Default is set to 7.0%.</p>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Scanner Configuration</h4>
+                    <p class="text-xs text-slate-500">Barcode scanner is hard-locked to <strong>Code 128 Auto</strong> format for optimal store tag reading.</p>
                 </div>
             </div>
         </div>
 
     </main>
 
+    <!-- Application Logic Script -->
     <script>
-        let productDatabase = {}; // Map: SKU -> { desc, sell, edlp }
-        let rawProductArray = []; // Array for preview table
-        let loadedFilesInfo = []; // Track loaded file names & dates
+        // Global state variables
+        let productDatabase = {}; // Key: SKU string, Value: { desc, sell, edlp }
+        let loadedFilesData = [];
+        let currentTaxRate = 7.0;
         let isCameraActive = false;
-        let currentTaxRate = 7.0; // Default 7% tax
-        let activeLookupItem = null; // Store currently viewed item for recalculations
-        let currentSoundcareTerm = 2; // Default 2-year term
+        
+        let activeLookupItem = null; 
+        let selectedPriceType = 'sell'; // 'sell' or 'edlp'
+        
+        // Add-on states
+        let currentDiscountPercent = 10;
+        let currentSoundcareTerm = 2; // 2, 3, 5, or 'ima'
+        let currentFinancingMonths = 6; // 6, 24, or 36
 
-        function switchTab(tabName) {
-            const scannerTab = document.getElementById('tab-scanner');
-            const spreadsheetTab = document.getElementById('tab-spreadsheet');
-            const settingsTab = document.getElementById('tab-settings');
-            
-            const btnScanner = document.getElementById('tab-btn-scanner');
-            const btnSpreadsheet = document.getElementById('tab-btn-spreadsheet');
-            const btnSettings = document.getElementById('tab-btn-settings');
+        // Tab Navigation Controller
+        function switchTab(tabId) {
+            ['scanner', 'spreadsheet', 'settings'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                let navBtn = document.getElementById(`nav-${t}`);
+                if (navBtn) {
+                    navBtn.className = "px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 text-slate-600 hover:text-slate-900";
+                }
+            });
 
-            scannerTab.classList.add('hidden');
-            spreadsheetTab.classList.add('hidden');
-            settingsTab.classList.add('hidden');
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            let activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.className = "px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center space-x-2 bg-white text-emerald-700 shadow-sm";
+            }
 
-            btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
-            btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
-            btnSettings.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-indigo-600 flex items-center justify-center space-x-2";
-
-            if (tabName === 'scanner') {
-                scannerTab.classList.remove('hidden');
-                btnScanner.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
-            } else if (tabName === 'spreadsheet') {
-                spreadsheetTab.classList.remove('hidden');
-                btnSpreadsheet.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
-                if (isCameraActive) stopCamera();
-            } else if (tabName === 'settings') {
-                settingsTab.classList.remove('hidden');
-                btnSettings.className = "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-600 shadow-sm flex items-center justify-center space-x-2";
-                if (isCameraActive) stopCamera();
+            if (tabId !== 'scanner' && isCameraActive) {
+                stopCamera();
             }
         }
 
-        function saveTaxRate() {
-            const input = document.getElementById('input-tax-rate');
-            const val = parseFloat(input.value);
-            if (isNaN(val) || val < 0) {
-                alertBox("Please enter a valid tax percentage.");
-                return;
+        // Custom Notification Box (Replaces alert())
+        function alertBox(message, title = "Notice", isError = false) {
+            const alertEl = document.getElementById('custom-alert');
+            const titleEl = document.getElementById('alert-title');
+            const msgEl = document.getElementById('alert-message');
+            const iconEl = document.getElementById('alert-icon-container');
+
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+
+            if (isError) {
+                alertEl.className = "mb-6 p-4 rounded-xl border flex items-start space-x-3 transition-all animate-fade-in shadow-sm bg-rose-50 border-rose-200 text-rose-800";
+                iconEl.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-600"></i>';
+            } else {
+                alertEl.className = "mb-6 p-4 rounded-xl border flex items-start space-x-3 transition-all animate-fade-in shadow-sm bg-emerald-50 border-emerald-200 text-emerald-800";
+                iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i>';
             }
-            currentTaxRate = val;
-            alertBox(`Tax rate updated to ${currentTaxRate}%`);
-            if (activeLookupItem) {
+            alertEl.classList.remove('hidden');
+            setTimeout(() => hideAlert(), 6000);
+        }
+
+        function hideAlert() {
+            document.getElementById('custom-alert').classList.add('hidden');
+        }
+
+        function updateTaxRate(val) {
+            let parsed = parseFloat(val);
+            if (!isNaN(parsed) && parsed >= 0) {
+                currentTaxRate = parsed;
                 recalculateTotals();
             }
         }
 
-        function handleExcelUpload(event) {
+        // Spreadsheet Parsing Logic
+        function handleFileSelect(event) {
             const files = event.target.files;
             if (!files || files.length === 0) return;
 
-            const filesToProcess = Array.from(files).slice(0, 2);
-            document.getElementById('file-label-text').innerText = filesToProcess.map(f => f.name).join(', ');
-
-            productDatabase = {};
-            rawProductArray = [];
-            loadedFilesInfo = [];
-
-            let processedCount = 0;
-
-            filesToProcess.forEach(file => {
+            Array.from(files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
                         const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        
-                        let extractedDate = extractDateFromString(file.name) || new Date(file.lastModified);
-
-                        loadedFilesInfo.push({
-                            name: file.name,
-                            date: extractedDate instanceof Date && !isNaN(extractedDate) ? extractedDate : new Date()
-                        });
 
                         parseRowsIntoDatabase(jsonRows);
+                        loadedFilesData.push({ name: file.name, count: jsonRows.length });
+                        finalizeDatabaseLoad();
                     } catch (err) {
                         console.error(err);
-                        alertBox(`Failed to parse ${file.name}. Ensure it is a valid spreadsheet.`);
-                    }
-
-                    processedCount++;
-                    if (processedCount === filesToProcess.length) {
-                        finalizeDatabaseLoad();
+                        alertBox(`Failed to parse file: ${file.name}`, "Parse Error", true);
                     }
                 };
                 reader.readAsArrayBuffer(file);
             });
         }
 
-        function extractDateFromString(str) {
-            const match = str.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(\d{8})/);
-            if (match) {
-                const d = new Date(match[0]);
-                if (!isNaN(d)) return d;
-            }
-            return null;
-        }
-
         function parseRowsIntoDatabase(rows) {
             if (!rows || rows.length === 0) return;
-
             let sampleRow = rows[0];
             let keys = Object.keys(sampleRow);
             
@@ -359,8 +375,8 @@
                 if (!skuVal) return;
 
                 let descVal = descKey ? String(row[descKey]).trim() : "";
-                let sellVal = sellKey ? row[sellKey] : "";
-                let edlpVal = edlpKey ? row[edlpKey] : "";
+                let sellVal = sellKey !== undefined ? row[sellKey] : "";
+                let edlpVal = edlpKey !== undefined ? row[edlpKey] : "";
 
                 if (!productDatabase[skuVal]) {
                     productDatabase[skuVal] = { desc: "No description available", sell: "N/A", edlp: "N/A" };
@@ -369,99 +385,54 @@
                 if (descVal !== "" && descVal !== "No description available") {
                     productDatabase[skuVal].desc = descVal;
                 }
-                if (sellVal !== "" && sellVal !== "N/A") {
+                if (sellVal !== "" && sellVal !== undefined && sellVal !== null) {
                     productDatabase[skuVal].sell = sellVal;
                 }
-                if (edlpVal !== "" && edlpVal !== "N/A") {
+                if (edlpVal !== "" && edlpVal !== undefined && edlpVal !== null) {
                     productDatabase[skuVal].edlp = edlpVal;
                 }
             });
         }
 
         function finalizeDatabaseLoad() {
-            rawProductArray = Object.keys(productDatabase).map(sku => ({
-                sku: sku,
-                desc: productDatabase[sku].desc,
-                sell: productDatabase[sku].sell,
-                edlp: productDatabase[sku].edlp
-            }));
+            const listEl = document.getElementById('loaded-files-list');
+            listEl.innerHTML = "";
+            loadedFilesData.forEach(f => {
+                listEl.innerHTML += `<div class="py-2.5 flex justify-between items-center"><span class="font-medium text-slate-800"><i class="fa-solid fa-file-excel text-emerald-600 mr-2"></i>${escapeHtml(f.name)}</span><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-semibold">${f.count} rows</span></div>`;
+            });
 
-            if (rawProductArray.length === 0) {
-                alertBox("No valid SKUs found in the uploaded files.");
-                return;
+            const totalSkus = Object.keys(productDatabase).length;
+            document.getElementById('db-status-text').innerText = `${totalSkus} SKUs loaded and ready in memory.`;
+            document.getElementById('scanner-db-status').className = "bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 flex items-center justify-between";
+            document.getElementById('scanner-db-status').querySelector('i').className = "fa-solid fa-circle-check text-emerald-600 text-sm";
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Manual SKU & Lookup
+        function handleManualKeydown(e) {
+            if (e.key === 'Enter') {
+                submitManualSku();
             }
-
-            let latestDate = new Date(0);
-            loadedFilesInfo.forEach(f => {
-                if (f.date > latestDate) latestDate = f.date;
-            });
-
-            const dateStr = latestDate.getTime() > 0 ? latestDate.toLocaleDateString() : "Unknown";
-
-            updateDatabaseStatus(loadedFilesInfo.map(f => f.name).join(', '), rawProductArray.length, dateStr);
-            renderPreviewTable();
         }
 
-        function updateDatabaseStatus(filename, count, dateStr) {
-            const dot = document.getElementById('db-status-dot');
-            const text = document.getElementById('db-status-text');
-            dot.className = "w-2 h-2 rounded-full bg-emerald-500 inline-block";
-            text.innerText = `${count} items loaded`;
-
-            document.getElementById('spreadsheet-preview-card').classList.remove('hidden');
-            document.getElementById('db-filename').innerText = filename;
-            document.getElementById('db-row-count').innerText = count;
-            document.getElementById('db-update-date').innerText = dateStr;
-        }
-
-        function clearDatabase() {
-            productDatabase = {};
-            rawProductArray = [];
-            loadedFilesInfo = [];
-            document.getElementById('excel-file-input').value = "";
-            document.getElementById('file-label-text').innerText = "Click to browse or drop up to 2 files";
-            document.getElementById('spreadsheet-preview-card').classList.add('hidden');
-            
-            const dot = document.getElementById('db-status-dot');
-            const text = document.getElementById('db-status-text');
-            dot.className = "w-2 h-2 rounded-full bg-amber-400 inline-block";
-            text.innerText = "No Files Loaded";
-            clearResult();
-        }
-
-        function renderPreviewTable() {
-            const tbody = document.getElementById('preview-table-body');
-            tbody.innerHTML = "";
-            
-            const previewSlice = rawProductArray.slice(0, 25);
-            previewSlice.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-3 font-mono font-medium text-slate-800">${escapeHtml(item.sku)}</td>
-                    <td class="p-3 text-slate-700">${escapeHtml(item.desc)}</td>
-                    <td class="p-3 font-semibold text-emerald-600">${escapeHtml(String(item.sell))}</td>
-                    <td class="p-3 font-semibold text-blue-600">${escapeHtml(String(item.edlp))}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function lookupManualSku() {
+        function submitManualSku() {
             const input = document.getElementById('manual-sku-input');
-            const sku = input.value.trim();
-            if (!sku) {
-                alertBox("Please enter a numeric SKU.");
+            const val = input.value.trim();
+            if (!val) {
+                alertBox("Please enter a numeric SKU to search.", "Input Required", true);
                 return;
             }
-            performLookup(sku);
-            input.value = "";
+            performLookup(val);
         }
 
         function performLookup(sku) {
             const cleanSku = String(sku).trim();
             
             if (Object.keys(productDatabase).length === 0) {
-                alertBox("Please upload your price tag files first.");
+                alertBox("Please upload your price tag files first.", "Database Empty", true);
                 switchTab('spreadsheet');
                 return;
             }
@@ -482,16 +453,25 @@
                 card.className = "bg-white border-2 border-emerald-200 rounded-2xl p-5 shadow-lg transition-all transform animate-fade-in";
 
                 let hasPrices = false;
+                if (item.sell !== "N/A" && item.sell !== "") {
+                    selectedPriceType = 'sell';
+                } else if (item.edlp !== "N/A" && item.edlp !== "") {
+                    selectedPriceType = 'edlp';
+                }
 
                 if (item.sell !== "N/A" && item.sell !== "") {
                     hasPrices = true;
                     let baseNum = parsePriceToNumber(item.sell);
                     let taxAmount = baseNum * (currentTaxRate / 100);
                     let totalWithTax = baseNum + taxAmount;
+                    let isSelected = selectedPriceType === 'sell';
 
                     pricesGrid.innerHTML += `
-                        <div class="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
-                            <span class="text-xs font-semibold text-emerald-600 uppercase">Sell Price</span>
+                        <div onclick="selectPriceType('sell')" class="cursor-pointer rounded-xl p-3.5 border transition-all ${isSelected ? 'bg-emerald-100/80 border-emerald-400 shadow-sm ring-2 ring-emerald-500/30' : 'bg-emerald-50 border-emerald-100 hover:bg-emerald-100/50'}">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-semibold text-emerald-700 uppercase">Sell Price</span>
+                                <i class="fa-solid ${isSelected ? 'fa-circle-check text-emerald-600' : 'fa-circle text-emerald-300'} text-sm"></i>
+                            </div>
                             <div class="text-2xl font-extrabold text-emerald-700 mt-1">${formatPrice(item.sell)}</div>
                             <div class="text-xs text-slate-500 mt-1">+ Tax (${currentTaxRate}%): <span class="font-semibold text-slate-700">$${totalWithTax.toFixed(2)}</span></div>
                         </div>
@@ -503,10 +483,14 @@
                     let baseNum = parsePriceToNumber(item.edlp);
                     let taxAmount = baseNum * (currentTaxRate / 100);
                     let totalWithTax = baseNum + taxAmount;
+                    let isSelected = selectedPriceType === 'edlp';
 
                     pricesGrid.innerHTML += `
-                        <div class="bg-blue-50 rounded-xl p-3.5 border border-blue-100">
-                            <span class="text-xs font-semibold text-blue-600 uppercase">StorEDLP Price</span>
+                        <div onclick="selectPriceType('edlp')" class="cursor-pointer rounded-xl p-3.5 border transition-all ${isSelected ? 'bg-blue-100/80 border-blue-400 shadow-sm ring-2 ring-blue-500/30' : 'bg-blue-50 border-blue-100 hover:bg-blue-100/50'}">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-semibold text-blue-700 uppercase">StorEDLP Price</span>
+                                <i class="fa-solid ${isSelected ? 'fa-circle-check text-blue-600' : 'fa-circle text-blue-300'} text-sm"></i>
+                            </div>
                             <div class="text-2xl font-extrabold text-blue-700 mt-1">${formatPrice(item.edlp)}</div>
                             <div class="text-xs text-slate-500 mt-1">+ Tax (${currentTaxRate}%): <span class="font-semibold text-slate-700">$${totalWithTax.toFixed(2)}</span></div>
                         </div>
@@ -518,13 +502,20 @@
                     customerOptions.classList.add('hidden');
                 } else {
                     customerOptions.classList.remove('hidden');
-                    // Reset checkboxes & state
+                    // Reset add-ons state
                     document.getElementById('chk-discount').checked = false;
-                    document.getElementById('chk-ima').checked = false;
+                    document.getElementById('discount-slider-container').classList.add('hidden');
                     document.getElementById('chk-soundcare').checked = false;
-                    currentSoundcareTerm = 2;
-                    updateTermButtonUI();
                     document.getElementById('soundcare-term-container').classList.add('hidden');
+                    document.getElementById('chk-financing').checked = false;
+                    document.getElementById('financing-term-container').classList.add('hidden');
+                    
+                    currentDiscountPercent = 10;
+                    document.getElementById('discount-range').value = 10;
+                    document.getElementById('discount-val-label').innerText = '10%';
+                    currentSoundcareTerm = 2;
+                    currentFinancingMonths = 6;
+                    updateTermButtonUI();
                     recalculateTotals();
                 }
 
@@ -540,52 +531,148 @@
             }
         }
 
-        function getSoundcareCost(price, term) {
-            if (term === 3) {
-                if (price >= 0 && price <= 199.99) return 0;
-                if (price <= 249.99) return 59.99;
-                if (price <= 299.99) return 69.99;
-                if (price <= 399.99) return 79.99;
-                if (price <= 499.99) return 94.99;
-                if (price <= 599.99) return 109.99;
-                if (price <= 699.99) return 124.99;
-                if (price <= 799.99) return 139.99;
-                if (price <= 899.99) return 154.99;
-                if (price <= 999.99) return 169.99;
-                if (price <= 1199.99) return 184.99;
-                if (price <= 1499.99) return 199.99;
-                if (price <= 1999.99) return 249.99;
-                if (price <= 2999.99) return 349.99;
-                if (price <= 3999.99) return 449.99;
-                if (price <= 4999.99) return 549.99;
-                if (price <= 7499.99) return 749.99;
-                if (price <= 14999.99) return 1399.99;
-                if (price <= 24999.99) return 2499.99;
-                if (price <= 37499.99) return 3799.99;
-                if (price <= 50000.00) return 4999.99;
-                return 0; 
-            } else if (term === 5) {
-                if (price >= 0 && price <= 199.99) return 0;
-                if (price <= 249.99) return 79.99;
-                if (price <= 299.99) return 99.99;
-                if (price <= 399.99) return 119.99;
-                if (price <= 499.99) return 149.99;
-                if (price <= 599.99) return 179.99;
-                if (price <= 699.99) return 209.99;
-                if (price <= 799.99) return 239.99;
-                if (price <= 899.99) return 269.99;
-                if (price <= 999.99) return 299.99;
-                if (price <= 1199.99) return 339.99;
-                if (price <= 1499.99) return 389.99;
-                if (price <= 1999.99) return 489.99;
-                if (price <= 2999.99) return 689.99;
-                if (price <= 3999.99) return 949.99;
-                if (price <= 4999.99) return 1149.99;
-                if (price <= 7499.99) return 1599.99;
-                if (price > 75000.00) return 0;
-                return 0;
+        function selectPriceType(type) {
+            if (!activeLookupItem) return;
+            if (type === 'sell' && (activeLookupItem.sell === "N/A" || activeLookupItem.sell === "")) return;
+            if (type === 'edlp' && (activeLookupItem.edlp === "N/A" || activeLookupItem.edlp === "")) return;
+            
+            selectedPriceType = type;
+            performLookup(activeLookupItem.sku);
+        }
+
+        function parsePriceToNumber(val) {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            let clean = String(val).replace(/[^0-9.]/g, '');
+            let num = parseFloat(clean);
+            return isNaN(num) ? 0 : num;
+        }
+
+        function formatPrice(val) {
+            let num = parsePriceToNumber(val);
+            return `$${num.toFixed(2)}`;
+        }
+
+        // Code 128 Auto Barcode Scanner (QuaggaJS)
+        function toggleCamera() {
+            if (isCameraActive) {
+                stopCamera();
             } else {
-                // Default 2-year plan
+                startCamera();
+            }
+        }
+
+        function startCamera() {
+            const container = document.getElementById('camera-container');
+            container.classList.remove('hidden');
+            document.getElementById('cam-btn-text').innerText = 'Stop Camera';
+            isCameraActive = true;
+
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector('#interactive'),
+                    constraints: {
+                        facingMode: "environment"
+                    },
+                },
+                decoder: {
+                    readers: ["code_128_reader"] // Locked to Code 128 Auto
+                }
+            }, function(err) {
+                if (err) {
+                    console.error(err);
+                    alertBox("Unable to access camera or initialize Code 128 reader.", "Camera Error", true);
+                    stopCamera();
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(onBarcodeDetected);
+        }
+
+        function stopCamera() {
+            if (isCameraActive) {
+                try {
+                    Quagga.stop();
+                    Quagga.offDetected(onBarcodeDetected);
+                } catch(e) {}
+            }
+            isCameraActive = false;
+            document.getElementById('camera-container').classList.add('hidden');
+            document.getElementById('cam-btn-text').innerText = 'Scan Barcode';
+        }
+
+        function onBarcodeDetected(result) {
+            if (result && result.codeResult && result.codeResult.code) {
+                let code = result.codeResult.code;
+                document.getElementById('manual-sku-input').value = code;
+                stopCamera();
+                performLookup(code);
+            }
+        }
+
+        // Add-ons & Recalculation Logic
+        function toggleDiscountWidget() {
+            const useDiscount = document.getElementById('chk-discount').checked;
+            const container = document.getElementById('discount-slider-container');
+            if (useDiscount) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+            recalculateTotals();
+        }
+
+        function onDiscountSliderChange(val) {
+            currentDiscountPercent = parseInt(val, 10);
+            document.getElementById('discount-val-label').innerText = `${currentDiscountPercent}%`;
+            recalculateTotals();
+        }
+
+        function toggleSoundcareWidget() {
+            const useSoundcare = document.getElementById('chk-soundcare').checked;
+            const container = document.getElementById('soundcare-term-container');
+            if (useSoundcare) {
+                container.classList.remove('hidden');
+                document.getElementById('soundcare-badge').className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg";
+                document.getElementById('soundcare-badge').innerText = `Active (${currentSoundcareTerm === 'ima' ? 'IMA' : currentSoundcareTerm + '-Yr'})`;
+            } else {
+                container.classList.add('hidden');
+                document.getElementById('soundcare-badge').className = "text-xs font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-lg";
+                document.getElementById('soundcare-badge').innerText = `Optional`;
+            }
+            recalculateTotals();
+        }
+
+        function setSoundcareTerm(term) {
+            currentSoundcareTerm = term;
+            updateTermButtonUI();
+            if (document.getElementById('chk-soundcare').checked) {
+                document.getElementById('soundcare-badge').innerText = `Active (${term === 'ima' ? 'IMA' : term + '-Yr'})`;
+            }
+            recalculateTotals();
+        }
+
+        function updateTermButtonUI() {
+            ['2', '3', '5', 'ima'].forEach(t => {
+                let btn = document.getElementById(`btn-term-${t}`);
+                if (!btn) return;
+                if (currentSoundcareTerm === t || currentSoundcareTerm === parseInt(t, 10)) {
+                    btn.className = "py-2 px-3 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-100 text-emerald-800 shadow-xs";
+                } else {
+                    btn.className = "py-2 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100";
+                }
+            });
+        }
+
+        // Soundcare Tier Calculation Functions
+        function getSoundcareCost(price, term) {
+            if (term === 'ima') return 189.99;
+            
+            if (term === 2) {
                 if (price <= 29.99) return 4.99;
                 if (price <= 49.99) return 8.99;
                 if (price <= 74.99) return 13.99;
@@ -606,192 +693,182 @@
                 if (price <= 1999.99) return 179.99;
                 if (price <= 2999.99) return 219.99;
                 if (price <= 3999.99) return 299.99;
-                if (price <= 499.99) return 399.99;
+                if (price <= 4999.99) return 399.99;
                 if (price <= 7499.99) return 549.99;
                 if (price <= 14999.99) return 999.99;
                 if (price <= 24999.99) return 1499.99;
                 if (price <= 37499.99) return 1999.99;
-                if (price <= 50000.00) return 2799.99;
+                if (price <= 50000) return 2799.99;
+                return 0; // > 50,000 does not qualify
+            }
+
+            if (term === 3) {
+                if (price < 200) return 0;
+                if (price <= 249.99) return 59.99;
+                if (price <= 299.99) return 69.99;
+                if (price <= 399.99) return 79.99;
+                if (price <= 499.99) return 94.99;
+                if (price <= 599.99) return 109.99;
+                if (price <= 699.99) return 124.99;
+                if (price <= 799.99) return 139.99;
+                if (price <= 899.99) return 154.99;
+                if (price <= 999.99) return 169.99;
+                if (price <= 1199.99) return 184.99;
+                if (price <= 1499.99) return 199.99;
+                if (price <= 1999.99) return 249.99;
+                if (price <= 2999.99) return 349.99;
+                if (price <= 3999.99) return 449.99;
+                if (price <= 4999.99) return 549.99;
+                if (price <= 7499.99) return 749.99;
+                if (price <= 14999.99) return 1399.99;
+                if (price <= 24999.99) return 2499.99;
+                if (price <= 37499.99) return 3799.99;
+                if (price <= 50000) return 4999.99;
                 return 0;
             }
+
+            if (term === 5) {
+                if (price < 200) return 0;
+                if (price <= 249.99) return 79.99;
+                if (price <= 299.99) return 99.99;
+                if (price <= 399.99) return 119.99;
+                if (price <= 499.99) return 149.99;
+                if (price <= 599.99) return 179.99;
+                if (price <= 699.99) return 209.99;
+                if (price <= 799.99) return 239.99;
+                if (price <= 899.99) return 269.99;
+                if (price <= 999.99) return 299.99;
+                if (price <= 1199.99) return 339.99;
+                if (price <= 1499.99) return 389.99;
+                if (price <= 1999.99) return 489.99;
+                if (price <= 2999.99) return 689.99;
+                if (price <= 3999.99) return 949.99;
+                if (price <= 4999.99) return 1149.99;
+                if (price <= 7499.99) return 1599.99;
+                if (price <= 75000) return 1599.99; 
+                return 0; // > 75,000 does not qualify for 5 year
+            }
+
+            return 0;
         }
 
-        function toggleSoundcareOptions() {
-            const isChecked = document.getElementById('chk-soundcare').checked;
-            const container = document.getElementById('soundcare-term-container');
-            if (isChecked) {
+        // Financing Widget Controller
+        function toggleFinancingWidget() {
+            const useFinancing = document.getElementById('chk-financing').checked;
+            const container = document.getElementById('financing-term-container');
+            if (useFinancing) {
                 container.classList.remove('hidden');
+                document.getElementById('financing-badge').className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg";
             } else {
                 container.classList.add('hidden');
+                document.getElementById('financing-badge').className = "text-xs font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-lg";
             }
             recalculateTotals();
         }
 
-        function setSoundcareTerm(term) {
-            currentSoundcareTerm = term;
-            updateTermButtonUI();
+        function setFinancingMonths(months) {
+            currentFinancingMonths = months;
+            updateFinancingButtonUI();
             recalculateTotals();
         }
 
-        function updateTermButtonUI() {
-            [2, 3, 5].forEach(t => {
-                const btn = document.getElementById(`term-btn-${t}`);
-                if (t === currentSoundcareTerm) {
-                    btn.className = "px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all";
+        function updateFinancingButtonUI() {
+            [6, 24, 36].forEach(m => {
+                let btn = document.getElementById(`btn-fin-${m}`);
+                if (!btn) return;
+                if (currentFinancingMonths === m) {
+                    btn.className = "py-2 px-3 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-100 text-emerald-800 shadow-xs";
                 } else {
-                    btn.className = "px-2.5 py-1 rounded-md text-slate-600 hover:text-indigo-600 transition-all";
+                    btn.className = "py-2 px-3 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100";
                 }
             });
+        }
+
+        function updateFinancingUI(finalTotal) {
+            const grid = document.getElementById('financing-buttons-grid');
+            const infoText = document.getElementById('financing-info-text');
+            const monthlyInstEl = document.getElementById('res-monthly-installment');
+
+            grid.innerHTML = "";
+            let availableMonths = [];
+
+            if (finalTotal > 299.99) availableMonths.push(6);
+            if (finalTotal > 999.99) availableMonths.push(24);
+            if (finalTotal > 1799.99) availableMonths.push(36);
+
+            if (availableMonths.length === 0) {
+                infoText.innerText = "Total is under $299.99; does not qualify for installment financing.";
+                monthlyInstEl.classList.add('hidden');
+                return;
+            }
+
+            infoText.innerText = "Select available installment plan:";
+            if (!availableMonths.includes(currentFinancingMonths)) {
+                currentFinancingMonths = availableMonths[0];
+            }
+
+            availableMonths.forEach(m => {
+                let monthlyPay = finalTotal / m;
+                let isSelected = currentFinancingMonths === m;
+                grid.innerHTML += `
+                    <button type="button" id="btn-fin-${m}" onclick="setFinancingMonths(${m})" class="py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center ${isSelected ? 'border-emerald-500 bg-emerald-100 text-emerald-800 shadow-xs' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'}">
+                        <div>${m} Months</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">$${monthlyPay.toFixed(2)}/mo</div>
+                    </button>
+                `;
+            });
+
+            if (document.getElementById('chk-financing').checked) {
+                let selectedMonthlyPay = finalTotal / currentFinancingMonths;
+                monthlyInstEl.classList.remove('hidden');
+                monthlyInstEl.innerText = `Or ${currentFinancingMonths} monthly installments of $${selectedMonthlyPay.toFixed(2)} / mo`;
+            } else {
+                monthlyInstEl.classList.add('hidden');
+            }
         }
 
         function recalculateTotals() {
             if (!activeLookupItem) return;
 
-            let rawPriceStr = activeLookupItem.sell !== "N/A" && activeLookupItem.sell !== "" ? activeLookupItem.sell : activeLookupItem.edlp;
-            let basePrice = parsePriceToNumber(rawPriceStr);
+            let rawPriceStr = selectedPriceType === 'edlp' ? activeLookupItem.edlp : activeLookupItem.sell;
+            if (rawPriceStr === "N/A" || rawPriceStr === "" || rawPriceStr === undefined) {
+                rawPriceStr = activeLookupItem.sell !== "N/A" && activeLookupItem.sell !== "" ? activeLookupItem.sell : activeLookupItem.edlp;
+            }
+
+            let initialBasePrice = parsePriceToNumber(rawPriceStr);
+            let basePrice = initialBasePrice;
+
+            updateTermButtonUI();
 
             const useDiscount = document.getElementById('chk-discount').checked;
             if (useDiscount) {
-                basePrice = basePrice * 0.90;
+                basePrice = basePrice * (1 - (currentDiscountPercent / 100));
             }
 
             let taxAmount = basePrice * (currentTaxRate / 100);
             let subtotalWithTax = basePrice + taxAmount;
 
-            const useIma = document.getElementById('chk-ima').checked;
-            let imaCost = useIma ? 189.99 : 0;
-
-            let initialBasePrice = parsePriceToNumber(rawPriceStr);
-            let soundcareCost = getSoundcareCost(initialBasePrice, currentSoundcareTerm);
             const useSoundcare = document.getElementById('chk-soundcare').checked;
-            let finalSoundcare = useSoundcare ? soundcareCost : 0;
-
-            document.getElementById('soundcare-cost-label').innerText = `$${soundcareCost.toFixed(2)}`;
-
-            let finalTotal = subtotalWithTax + imaCost + finalSoundcare;
-
-            document.getElementById('breakdown-tax-label').innerText = `Includes ${currentTaxRate}% Tax${useDiscount ? ' + 10% Discount' : ''}`;
-            document.getElementById('res-final-total').innerText = `$${finalTotal.toFixed(2)}`;
-        }
-
-        function parsePriceToNumber(val) {
-            if (val === "N/A" || val === undefined || val === null || val === "") return 0;
-            let str = String(val).replace(/[^0-9.]/g, '');
-            let num = Number(str);
-            return isNaN(num) ? 0 : num;
-        }
-
-        function clearResult() {
-            document.getElementById('result-card').classList.add('hidden');
-            activeLookupItem = null;
-        }
-
-        function formatPrice(val) {
-            if (val === "N/A" || val === undefined || val === null || val === "") return "N/A";
-            let str = String(val).trim();
-            if (!str.startsWith("$") && !isNaN(Number(str))) {
-                return "$" + Number(str).toFixed(2);
-            }
-            return str;
-        }
-
-        function toggleCamera() {
-            if (isCameraActive) {
-                stopCamera();
-            } else {
-                startCamera();
-            }
-        }
-
-        function startCamera() {
-            const container = document.getElementById('camera-container');
-            const btn = document.getElementById('camera-toggle-btn');
-            
-            container.classList.remove('hidden');
-            btn.innerText = "Stop Camera";
-            btn.className = "bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm";
-            isCameraActive = true;
-
-            Quagga.init({
-                inputStream : {
-                    name : "Live",
-                    type : "LiveStream",
-                    target: document.querySelector('#interactive'),
-                    constraints: {
-                        facingMode: "environment"
+            let coverageCost = 0;
+            if (useSoundcare) {
+                coverageCost = getSoundcareCost(initialBasePrice, currentSoundcareTerm);
+                let costPreviewEl = document.getElementById('soundcare-cost-preview');
+                if (costPreviewEl) {
+                    if (coverageCost > 0) {
+                        costPreviewEl.innerText = `${currentSoundcareTerm === 'ima' ? '2-Year IMA' : currentSoundcareTerm + '-Year Plan'} Cost: $${coverageCost.toFixed(2)}`;
+                    } else {
+                        costPreviewEl.innerText = `Item does not qualify for ${currentSoundcareTerm === 'ima' ? 'IMA' : currentSoundcareTerm + '-Year'} coverage at this price point ($0.00).`;
                     }
-                },
-                decoder : {
-                    readers : [
-                        "code_128_reader"
-                    ]
                 }
-            }, function(err) {
-                if (err) {
-                    console.error(err);
-                    alertBox("Unable to access camera. Check device permissions.");
-                    stopCamera();
-                    return;
-                }
-                Quagga.start();
-            });
-
-            Quagga.onDetected(onBarcodeDetected);
-        }
-
-        function stopCamera() {
-            if (isCameraActive) {
-                Quagga.stop();
-                Quagga.offDetected(onBarcodeDetected);
-            }
-            const container = document.getElementById('camera-container');
-            const btn = document.getElementById('camera-toggle-btn');
-            
-            container.classList.add('hidden');
-            btn.innerText = "Start Camera";
-            btn.className = "bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-sm";
-            isCameraActive = false;
-        }
-
-        let lastScannedCode = "";
-        let lastScanTime = 0;
-
-        function onBarcodeDetected(result) {
-            const code = result.codeResult.code;
-            const now = Date.now();
-            
-            if (code === lastScannedCode && now - lastScanTime < 2000) {
-                return;
             }
 
-            lastScannedCode = code;
-            lastScanTime = now;
+            let finalTotal = subtotalWithTax + coverageCost;
 
-            if (navigator.vibrate) {
-                navigator.vibrate(100);
-            }
+            updateFinancingUI(finalTotal);
 
-            performLookup(code);
-        }
-
-        function alertBox(message) {
-            const toast = document.createElement('div');
-            toast.className = "fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-2 transition-all animate-bounce";
-            toast.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-400"></i><span>${escapeHtml(message)}</span>`;
-            document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
-        }
-
-        function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+            let discountText = useDiscount ? ` + ${currentDiscountPercent}% Discount` : '';
+            document.getElementById('breakdown-tax-label').innerText = `${useDiscount ? 'Discounted base + ' : ''}Includes ${currentTaxRate}% Tax${discountText}`;
+            document.getElementById('res-final-total').innerText = `$${finalTotal.toFixed(2)}`;
         }
     </script>
 </body>
