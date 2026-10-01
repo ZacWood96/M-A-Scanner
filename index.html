@@ -206,20 +206,48 @@
 
     <!-- TAB 2: CYCLE COUNT MODE -->
     <div id="tab-cycle" class="hidden space-y-6">
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-                <h3 class="text-base font-bold text-slate-900">Physical Inventory Cycle Count</h3>
-                <p class="text-xs text-slate-500 mt-0.5">Scan or enter SKUs to deduct expected counts and identify missing items.</p>
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Physical Inventory Cycle Count</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Scan barcodes or enter SKUs to automatically deduct expected inventory items.</p>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="exportUnscannedExcel()" class="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>Export Remaining (.XLS)</span>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center gap-2 w-full sm:w-auto">
-                <button id="cycle-mode-btn" onclick="toggleCycleMode()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-play"></i>
-                    <span id="cycle-mode-btn-text">Enter Cycle Count Mode</span>
-                </button>
-                <button onclick="exportUnscannedExcel()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-file-excel"></i>
-                    <span>Export Remaining (.XLS)</span>
-                </button>
+
+            <!-- Cycle Count Input & Scanner Bar -->
+            <div class="pt-3 border-t border-slate-100">
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Scan or Type SKU for Cycle Count</label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-barcode"></i>
+                        </span>
+                        <input type="number" pattern="[0-9]*" inputmode="numeric" id="cycle-manual-sku-input" onkeydown="handleCycleManualKeydown(event)" placeholder="Type SKU to deduct" class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
+                    </div>
+                    <button onclick="submitCycleManualSku()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 sm:px-5 py-3 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center space-x-2 shrink-0">
+                        <span>Deduct</span>
+                    </button>
+                    <button id="cycle-toggle-camera-btn" onclick="toggleCycleCamera()" title="Scan Barcode" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-camera text-base"></i>
+                    </button>
+                </div>
+
+                <!-- Cycle Camera Stream Viewport Container -->
+                <div id="cycle-camera-container" class="hidden mt-4 relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-video flex items-center justify-center">
+                    <div id="cycle-interactive" class="viewport w-full h-full relative"></div>
+                    <div class="absolute inset-0 border-2 border-emerald-500/40 pointer-events-none flex items-center justify-center">
+                        <div class="w-3/4 h-24 border-2 border-dashed border-emerald-400 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div class="absolute bottom-3 bg-slate-900/80 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-lg">
+                        Align Code 128 Auto Barcode within frame
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -244,15 +272,6 @@
                     <button onclick="cancelCycleDeduction()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-3 py-1.5 rounded-xl text-xs transition-all">Cancel</button>
                 </div>
             </div>
-        </div>
-
-        <!-- Cycle Count Active Status Banner -->
-        <div id="cycle-active-banner" class="hidden bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <i class="fa-solid fa-circle-notch fa-spin text-blue-600"></i>
-                <span class="font-semibold">Cycle Count Mode Active: Scan or enter barcodes to automatically deduct inventory items.</span>
-            </div>
-            <button onclick="toggleCycleMode()" class="font-bold underline text-blue-900">Exit Mode</button>
         </div>
 
         <!-- Cycle List Table Container -->
@@ -352,6 +371,7 @@
         let currentTaxRate = 7.0;
         let taxCoverageContract = false; // Default false (Georgia rule)
         let isCameraActive = false;
+        let isCycleCameraActive = false;
         
         let activeLookupItem = null; 
         let selectedPriceType = 'sell'; // 'sell' or 'edlp'
@@ -362,7 +382,6 @@
         let currentFinancingMonths = 6; // 6, 24, or 36
 
         // Cycle Count state variables
-        let isCycleModeActive = false;
         let cycleInventoryData = []; // Array of { sku, desc, expectedQty }
         let pendingCycleSku = null;
 
@@ -386,6 +405,9 @@
 
             if (tabId !== 'scanner' && isCameraActive) {
                 stopCamera();
+            }
+            if (tabId !== 'cycle' && isCycleCameraActive) {
+                stopCycleCamera();
             }
         }
 
@@ -534,7 +556,6 @@
             let skuKey = keys.find(k => ['variant number', 'sku', 'item'].includes(k.trim().toLowerCase()));
             let qtyKey = keys.find(k => ['physical inventory', 'inventory', 'qty', 'quantity', 'expected'].includes(k.trim().toLowerCase()));
             
-            // Look for Brand Name and Product Name columns
             let brandKey = keys.find(k => ['brand name', 'brand'].includes(k.trim().toLowerCase()));
             let prodKey = keys.find(k => ['product name', 'product', 'title', 'description', 'prod desc'].includes(k.trim().toLowerCase()));
             let descKey = keys.find(k => ['description', 'prod desc', 'item description', 'title'].includes(k.trim().toLowerCase()));
@@ -607,64 +628,81 @@
             });
         }
 
-        function toggleCycleMode() {
-            if (cycleInventoryData.length === 0) {
-                alertBox("Please upload a cycle count spreadsheet in Settings first.", "No Data", true);
-                switchTab('settings');
-                return;
-            }
-
-            isCycleModeActive = !isCycleModeActive;
-            const btn = document.getElementById('cycle-mode-btn');
-            const btnText = document.getElementById('cycle-mode-btn-text');
-            const banner = document.getElementById('cycle-active-banner');
-
-            if (isCycleModeActive) {
-                btn.className = "flex-1 sm:flex-none bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-600/20 flex items-center justify-center space-x-2";
-                btnText.innerText = "Exit Cycle Count Mode";
-                banner.classList.remove('hidden');
-                switchTab('cycle');
-                // Also auto-start camera if convenient or prompt manual/camera scan
-                if (!isCameraActive) {
-                    startCamera();
-                }
-            } else {
-                btn.className = "flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2";
-                btnText.innerText = "Enter Cycle Count Mode";
-                banner.classList.add('hidden');
-                stopCamera();
-                cancelCycleDeduction();
-            }
-        }
-
-        function handleManualKeydown(e) {
+        function handleCycleManualKeydown(e) {
             if (e.key === 'Enter') {
-                if (isCycleModeActive) {
-                    submitCycleManualSku();
-                } else {
-                    submitManualSku();
-                }
+                submitCycleManualSku();
             }
         }
 
         function submitCycleManualSku() {
-            const input = document.getElementById('manual-sku-input');
+            const input = document.getElementById('cycle-manual-sku-input');
             const val = input.value.trim();
             input.value = "";
             if (!val) return;
             processScannedCycleSku(val);
         }
 
-        function onBarcodeDetected(result) {
+        // Cycle Camera Scanner (QuaggaJS)
+        function toggleCycleCamera() {
+            if (isCycleCameraActive) {
+                stopCycleCamera();
+            } else {
+                startCycleCamera();
+            }
+        }
+
+        function startCycleCamera() {
+            if (cycleInventoryData.length === 0) {
+                alertBox("Please upload a cycle count spreadsheet first.", "No Data", true);
+                return;
+            }
+            const container = document.getElementById('cycle-camera-container');
+            container.classList.remove('hidden');
+            isCycleCameraActive = true;
+
+            Quagga.init({
+                inputStream: {
+                    name: "CycleLive",
+                    type: "LiveStream",
+                    target: document.querySelector('#cycle-interactive'),
+                    constraints: {
+                        facingMode: "environment"
+                    },
+                },
+                decoder: {
+                    readers: ["code_128_reader"]
+                }
+            }, function(err) {
+                if (err) {
+                    console.error(err);
+                    alertBox("Unable to access camera or initialize Code 128 reader.", "Camera Error", true);
+                    stopCycleCamera();
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(onCycleBarcodeDetected);
+        }
+
+        function stopCycleCamera() {
+            if (isCycleCameraActive) {
+                try {
+                    Quagga.stop();
+                    Quagga.offDetected(onCycleBarcodeDetected);
+                } catch(e) {}
+            }
+            isCycleCameraActive = false;
+            let container = document.getElementById('cycle-camera-container');
+            if (container) container.classList.add('hidden');
+        }
+
+        function onCycleBarcodeDetected(result) {
             if (result && result.codeResult && result.codeResult.code) {
                 let code = result.codeResult.code;
-                document.getElementById('manual-sku-input').value = code;
-                if (isCycleModeActive) {
-                    processScannedCycleSku(code);
-                } else {
-                    stopCamera();
-                    performLookup(code);
-                }
+                document.getElementById('cycle-manual-sku-input').value = code;
+                stopCycleCamera();
+                processScannedCycleSku(code);
             }
         }
 
@@ -695,7 +733,6 @@
 
             cancelCycleDeduction();
             renderCycleTable();
-            // Camera remains active for continuous scanning!
         }
 
         function cancelCycleDeduction() {
@@ -1011,7 +1048,7 @@
                 if (price <= 1499.99) return 149.99;
                 if (price <= 1999.99) return 179.99;
                 if (price <= 2999.99) return 219.99;
-                if (price <= 3999.99) return 299.99;
+                if (price <= 399.99) return 299.99;
                 if (price <= 4999.99) return 399.99;
                 if (price <= 7499.99) return 549.99;
                 if (price <= 14999.99) return 999.99;
